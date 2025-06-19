@@ -21,7 +21,6 @@ COPY packages/server ./packages/server
 COPY packages/core ./packages/core
 COPY packages/frontend ./packages/frontend
 COPY scripts ./scripts
-COPY resources ./resources
 
 
 # Build the project.
