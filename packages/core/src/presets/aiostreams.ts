@@ -7,14 +7,14 @@ import {
   AIOStream,
 } from '../db';
 import { Preset, baseOptions } from './preset';
-import { Env, formatZodError, RESOURCES } from '../utils';
+import { constants, Env, formatZodError, RESOURCES } from '../utils';
 import { StreamParser } from '../parser';
 import { createLogger } from '../utils';
 
 const logger = createLogger('parser');
 
 class AIOStreamsStreamParser extends StreamParser {
-  override parse(stream: Stream): ParsedStream {
+  override parse(stream: Stream): ParsedStream | { skip: true } {
     const aioStream = stream as AIOStream;
     const parsed = AIOStream.safeParse(aioStream);
     if (!parsed.success) {
@@ -23,11 +23,20 @@ class AIOStreamsStreamParser extends StreamParser {
       );
       throw new Error('Invalid stream');
     }
+    if (
+      aioStream.streamData.id?.endsWith('external-download') ||
+      aioStream.streamData.type === constants.STATISTIC_STREAM_TYPE
+    ) {
+      return { skip: true };
+    }
+    const addonName = this.addon?.name?.trim();
     return {
       id: this.getRandomId(),
       addon: {
         ...this.addon,
-        name: `${this.addon.name} | ${aioStream.streamData?.addon ?? ''}`,
+        name: addonName
+          ? `${addonName} | ${aioStream.streamData?.addon ?? ''}`
+          : (aioStream.streamData?.addon ?? ''),
       },
       error: aioStream.streamData?.error,
       type: aioStream.streamData?.type ?? 'http',
@@ -51,6 +60,7 @@ class AIOStreamsStreamParser extends StreamParser {
       torrent: aioStream.streamData?.torrent,
       parsedFile: aioStream.streamData?.parsedFile,
       keywordMatched: aioStream.streamData?.keywordMatched,
+      streamExpressionMatched: aioStream.streamData?.streamExpressionMatched,
       regexMatched: aioStream.streamData?.regexMatched,
       originalName: aioStream.name ?? undefined,
       originalDescription: (aioStream.description || stream.title) ?? undefined,
@@ -68,7 +78,8 @@ export class AIOStreamsPreset extends Preset {
       {
         id: 'name',
         name: 'Name',
-        description: 'What to call this addon',
+        description:
+          "What to call this addon. Leave empty if you don't want to include the name of this addon in the stream results.",
         type: 'string',
         required: true,
         default: 'AIOStreams',
@@ -126,7 +137,9 @@ export class AIOStreamsPreset extends Preset {
     options: Record<string, any>
   ): Promise<Addon[]> {
     if (!options.manifestUrl.endsWith('/manifest.json')) {
-      throw new Error('Invalid manifest URL');
+      throw new Error(
+        `${options.name} has an invalid Manifest URL. It must be a valid link to a manifest.json`
+      );
     }
     return [this.generateAddon(userData, options)];
   }

@@ -5,6 +5,7 @@ import { FaPatreon } from 'react-icons/fa6';
 import { SiBuymeacoffee, SiGithubsponsors, SiKofi } from 'react-icons/si';
 import { Tooltip } from '../ui/tooltip';
 import { FaGlobe } from 'react-icons/fa6';
+import { BiDonateHeart } from 'react-icons/bi';
 
 type SocialIconProps = {
   id:
@@ -14,7 +15,8 @@ type SocialIconProps = {
     | 'patreon'
     | 'buymeacoffee'
     | 'github-sponsors'
-    | 'website';
+    | 'website'
+    | 'donate';
   url: string;
   className?: string;
 };
@@ -34,6 +36,8 @@ export function SocialIcon({ id, url, className }: SocialIconProps) {
         return 'Support the Developer on Patreon';
       case 'buymeacoffee':
         return 'Support the Developer on Buy Me a Coffee';
+      case 'donate':
+        return 'Support the Developer';
       default:
         return null;
     }
@@ -70,6 +74,8 @@ const SocialIconComponent = ({ id, url, className }: SocialIconProps) => {
         return <FaPatreon className="w-7 h-7" />;
       case 'buymeacoffee':
         return <SiBuymeacoffee className="w-7 h-7" />;
+      case 'donate':
+        return <BiDonateHeart className="w-7 h-7" />;
       default:
         return null;
     }

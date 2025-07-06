@@ -173,13 +173,4 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-// handle all other methods with a 405 Method Not Allowed
-router.all('/', (req, res) => {
-  throw new APIError(
-    constants.ErrorCode.METHOD_NOT_ALLOWED,
-    405,
-    `${req.method} is not allowed on this route`
-  );
-});
-
 export default router;

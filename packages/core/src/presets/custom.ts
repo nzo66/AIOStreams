@@ -82,7 +82,9 @@ export class CustomPreset extends Preset {
     options: Record<string, any>
   ): Promise<Addon[]> {
     if (!options.manifestUrl.endsWith('/manifest.json')) {
-      throw new Error('Invalid manifest URL');
+      throw new Error(
+        `${options.name} has an invalid Manifest URL. It must be a valid link to a manifest.json`
+      );
     }
     return [this.generateAddon(userData, options)];
   }

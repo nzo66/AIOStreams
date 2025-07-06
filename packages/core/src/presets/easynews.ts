@@ -102,13 +102,7 @@ export class EasynewsPreset extends Preset {
     url = url.replace(/\/$/, '');
     const easynewsCredentials = this.getServiceCredential(
       constants.EASYNEWS_SERVICE,
-      userData,
-      {
-        [constants.EASYNEWS_SERVICE]: (credentials: any) => ({
-          username: credentials.username,
-          password: credentials.password,
-        }),
-      }
+      userData
     );
     if (!easynewsCredentials) {
       throw new Error(

@@ -257,7 +257,7 @@ const SERVICE_DETAILS: Record<
   },
   [ALLEDEBRID_SERVICE]: {
     id: ALLEDEBRID_SERVICE,
-    name: 'All-Debrid',
+    name: 'AllDebrid',
     shortName: 'AD',
     knownNames: ['AD', 'All Debrid', 'AllDebrid', 'All-Debrid'],
     signUpText:
@@ -566,6 +566,7 @@ const SORT_CRITERIA = [
   'cached',
   'library',
   'keyword',
+  'streamExpressionMatched',
 ] as const;
 
 export const MIN_SIZE = 0;
@@ -716,6 +717,15 @@ export const SORT_CRITERIA_DETAILS = {
     descendingDescription:
       'Streams that match any of your keywords are preferred',
   },
+  streamExpressionMatched: {
+    name: 'Stream Expression Matched',
+    defaultDirection: 'desc',
+    description: 'Whether the stream matches any of your stream expressions',
+    ascendingDescription:
+      'Streams that do not match your stream expressions are preferred while the ones that do are ranked by the order of your stream expressions',
+    descendingDescription:
+      'Streams that match your stream expressions are preferred and ranked by the order of your stream expressions',
+  },
 } as const;
 
 const SORT_DIRECTIONS = ['asc', 'desc'] as const;
@@ -728,6 +738,7 @@ export const HTTP_STREAM_TYPE = 'http' as const;
 export const EXTERNAL_STREAM_TYPE = 'external' as const;
 export const YOUTUBE_STREAM_TYPE = 'youtube' as const;
 export const ERROR_STREAM_TYPE = 'error' as const;
+export const STATISTIC_STREAM_TYPE = 'statistic' as const;
 
 const STREAM_TYPES = [
   P2P_STREAM_TYPE,
@@ -738,6 +749,7 @@ const STREAM_TYPES = [
   EXTERNAL_STREAM_TYPE,
   YOUTUBE_STREAM_TYPE,
   ERROR_STREAM_TYPE,
+  STATISTIC_STREAM_TYPE,
 ] as const;
 
 export type StreamType = (typeof STREAM_TYPES)[number];

@@ -54,7 +54,29 @@ class MediaFusionStreamParser extends StreamParser {
     if (file && file.includes('┈➤')) {
       return file.split('┈➤')[1].trim();
     }
-    return file?.trim();
+    if (file) {
+      return file.trim();
+    }
+    if (
+      stream.description?.includes('Update IMDb metadata') ||
+      stream.description?.includes('Upload torrent for')
+    ) {
+      return undefined;
+    }
+    return super.getFilename(stream, currentParsedStream);
+  }
+
+  protected override getMessage(
+    stream: Stream,
+    currentParsedStream: ParsedStream
+  ): string | undefined {
+    if (
+      stream.description?.includes('Update IMDb metadata') ||
+      stream.description?.includes('Upload torrent for')
+    ) {
+      return stream.description.replace(/^\p{Emoji_Presentation}+/gu, '');
+    }
+    return undefined;
   }
 
   protected override getIndexer(
@@ -108,7 +130,11 @@ export class MediaFusionPreset extends Preset {
       constants.SEEDR_SERVICE,
     ];
 
-    const supportedResources = [constants.STREAM_RESOURCE];
+    const supportedResources = [
+      constants.STREAM_RESOURCE,
+      constants.CATALOG_RESOURCE,
+      constants.META_RESOURCE,
+    ];
 
     const options: Option[] = [
       ...baseOptions(
@@ -137,6 +163,13 @@ export class MediaFusionPreset extends Preset {
         name: 'Download via Browser',
         description:
           'Show download streams to allow downloading the stream from your service, rather than streaming.',
+        type: 'boolean',
+        default: false,
+      },
+      {
+        id: 'contributorStreams',
+        name: 'Contributor Streams',
+        description: 'Show a stream to contribute torrents for the title.',
         type: 'boolean',
         default: false,
       },
@@ -267,9 +300,13 @@ export class MediaFusionPreset extends Preset {
       return [this.generateAddon(userData, options, undefined)];
     }
 
-    let addons = usableServices.map((service) =>
-      this.generateAddon(userData, options, service.id)
-    );
+    let addons = usableServices.map((service, idx) => {
+      let addonOptions = structuredClone(options);
+      // only the first addon gets contributorStreams to ensure we don't get duplicate contribution streams
+      addonOptions.contributorStreams =
+        addonOptions.contributorStreams && idx === 0;
+      return this.generateAddon(userData, addonOptions, service.id);
+    });
 
     if (options.includeP2P) {
       addons.push(this.generateAddon(userData, options, undefined));
@@ -302,15 +339,18 @@ export class MediaFusionPreset extends Preset {
       timeout: options.timeout || this.METADATA.TIMEOUT,
       presetType: this.METADATA.ID,
       presetInstanceId: '',
-
-      headers: {
-        'User-Agent': this.METADATA.USER_AGENT,
-        encoded_user_data: this.generateEncodedUserData(
-          userData,
-          options,
-          serviceId
-        ),
-      },
+      headers: options.url?.endsWith('/manifest.json')
+        ? {
+            'User-Agent': this.METADATA.USER_AGENT,
+          }
+        : {
+            'User-Agent': this.METADATA.USER_AGENT,
+            encoded_user_data: this.generateEncodedUserData(
+              userData,
+              options,
+              serviceId
+            ),
+          },
     };
   }
 
@@ -327,12 +367,21 @@ export class MediaFusionPreset extends Preset {
     options: Record<string, any>,
     serviceId: ServiceId | undefined
   ) {
+    let pikpakCredentials = undefined;
+    if (serviceId === constants.PIKPAK_SERVICE) {
+      pikpakCredentials = this.getServiceCredential(serviceId, userData);
+    }
     const encodedUserData = this.base64EncodeJSON(
       {
         streaming_provider: !serviceId
           ? null
           : {
-              token: this.getServiceCredential(serviceId, userData),
+              token:
+                serviceId != constants.PIKPAK_SERVICE
+                  ? this.getServiceCredential(serviceId, userData)
+                  : undefined,
+              email: pikpakCredentials?.email,
+              password: pikpakCredentials?.password,
               service: serviceId,
               enable_watchlist_catalogs:
                 options.enableWatchlistCatalogs || false,
@@ -435,7 +484,7 @@ export class MediaFusionPreset extends Preset {
         mediaflow_config: null,
         rpdb_config: null,
         live_search_streams: !options.useCachedResultsOnly,
-        contribution_streams: false,
+        contribution_streams: options.contributorStreams ?? false,
         mdblist_config: null,
       },
       false,

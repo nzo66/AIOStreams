@@ -43,6 +43,15 @@ export function makeRequest(
     }
   }
 
+  if (headers.get('User-Agent') === 'none') {
+    headers.delete('User-Agent');
+  }
+
+  let domainUserAgent = domainHasUserAgent(url);
+  if (domainUserAgent) {
+    headers.set('User-Agent', domainUserAgent);
+  }
+
   // block recursive requests
   const key = `${url}-${forwardIp}`;
   const currentCount = urlCount.get(key, false) ?? 0;
@@ -62,7 +71,7 @@ export function makeRequest(
   logger.debug(
     `Making a ${useProxy ? 'proxied' : 'direct'} request to ${makeUrlLogSafe(
       url
-    )} with forwarded ip ${maskSensitiveInfo(forwardIp ?? 'none')}`
+    )} with forwarded ip ${maskSensitiveInfo(forwardIp ?? 'none')} and headers ${maskSensitiveInfo(JSON.stringify(Object.fromEntries(headers)))}`
   );
   let response = fetch(url, {
     dispatcher: useProxy ? new ProxyAgent(Env.ADDON_PROXY!) : undefined,
@@ -110,4 +119,38 @@ function shouldProxy(url: string) {
   }
 
   return shouldProxy;
+}
+
+function domainHasUserAgent(url: string) {
+  let userAgent: string | undefined;
+  let hostname: string;
+
+  try {
+    hostname = new URL(url).hostname;
+  } catch (error) {
+    return undefined;
+  }
+
+  if (!Env.HOSTNAME_USER_AGENT_OVERRIDES) {
+    return undefined;
+  }
+
+  for (const rule of Env.HOSTNAME_USER_AGENT_OVERRIDES.split(',')) {
+    const [ruleHostname, ruleUserAgent] = rule.split(':');
+    if (!ruleUserAgent) {
+      logger.error(`Invalid user agent config: ${rule}`);
+      continue;
+    }
+    if (ruleHostname === '*') {
+      userAgent = ruleUserAgent;
+    } else if (ruleHostname.startsWith('*')) {
+      if (hostname.endsWith(ruleHostname.slice(1))) {
+        userAgent = ruleUserAgent;
+      }
+    } else if (hostname === ruleHostname) {
+      userAgent = ruleUserAgent;
+    }
+  }
+
+  return userAgent;
 }

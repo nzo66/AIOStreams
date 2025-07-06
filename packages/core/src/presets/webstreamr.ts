@@ -18,6 +18,18 @@ class WebStreamrStreamParser extends StreamParser {
     return ['🔗'];
   }
 
+  protected override getStreamType(
+    stream: Stream,
+    service: ParsedStream['service'],
+    currentParsedStream: ParsedStream
+  ): ParsedStream['type'] {
+    const type = super.getStreamType(stream, service, currentParsedStream);
+    if (type === 'live') {
+      return 'http';
+    }
+    return type;
+  }
+
   protected override getMessage(
     stream: Stream,
     currentParsedStream: ParsedStream

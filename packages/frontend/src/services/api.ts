@@ -3,7 +3,10 @@ import { FormatterType, ParsedStream, UserData } from '@aiostreams/core';
 interface ApiResponse<T> {
   success: boolean;
   data?: T;
-  error?: string;
+  error?: {
+    code: string;
+    message: string;
+  };
 }
 
 interface CreateUserResponse {
@@ -17,7 +20,8 @@ interface LoadUserResponse {
 }
 
 export class UserConfigAPI {
-  private static BASE_URL = '/api/v1';
+  private static BASE_URL =
+    process.env.NEXT_PUBLIC_BACKEND_BASE_URL || '/api/v1';
 
   static async loadConfig(
     uuid: string,
@@ -39,7 +43,10 @@ export class UserConfigAPI {
       if (!response.ok || !data.success) {
         return {
           success: false,
-          error: data.error?.message || 'Failed to load configuration',
+          error: {
+            code: data.error?.code || 'UNKNOWN_ERROR',
+            message: data.error?.message || 'Failed to load configuration',
+          },
         };
       }
 
@@ -53,8 +60,11 @@ export class UserConfigAPI {
     } catch (err) {
       return {
         success: false,
-        error:
-          err instanceof Error ? err.message : 'Failed to load configuration',
+        error: {
+          code: 'UNKNOWN_ERROR',
+          message:
+            err instanceof Error ? err.message : 'Failed to load configuration',
+        },
       };
     }
   }
@@ -80,7 +90,10 @@ export class UserConfigAPI {
       if (!response.ok) {
         return {
           success: false,
-          error: data.error?.message || 'Failed to create configuration',
+          error: {
+            code: data.error?.code || 'UNKNOWN_ERROR',
+            message: data.error?.message || 'Failed to create configuration',
+          },
         };
       }
 
@@ -94,8 +107,13 @@ export class UserConfigAPI {
     } catch (err) {
       return {
         success: false,
-        error:
-          err instanceof Error ? err.message : 'Failed to create configuration',
+        error: {
+          code: 'UNKNOWN_ERROR',
+          message:
+            err instanceof Error
+              ? err.message
+              : 'Failed to create configuration',
+        },
       };
     }
   }
@@ -123,7 +141,10 @@ export class UserConfigAPI {
       if (!response.ok) {
         return {
           success: false,
-          error: data.error?.message || 'Failed to update configuration',
+          error: {
+            code: data.error?.code || 'UNKNOWN_ERROR',
+            message: data.error?.message || 'Failed to update configuration',
+          },
         };
       }
 
@@ -134,8 +155,13 @@ export class UserConfigAPI {
     } catch (err) {
       return {
         success: false,
-        error:
-          err instanceof Error ? err.message : 'Failed to update configuration',
+        error: {
+          code: 'UNKNOWN_ERROR',
+          message:
+            err instanceof Error
+              ? err.message
+              : 'Failed to update configuration',
+        },
       };
     }
   }
@@ -164,7 +190,10 @@ export class UserConfigAPI {
     if (!response.ok) {
       return {
         success: false,
-        error: data.error?.message || 'Failed to format stream',
+        error: {
+          code: data.error?.code || 'UNKNOWN_ERROR',
+          message: data.error?.message || 'Failed to format stream',
+        },
       };
     }
 
@@ -181,6 +210,7 @@ export class UserConfigAPI {
         type: string;
         name: string;
         hideable: boolean;
+        searchable: boolean;
         addonName: string;
       }[]
     >
@@ -201,7 +231,10 @@ export class UserConfigAPI {
       if (!response.ok) {
         return {
           success: false,
-          error: data.error?.message || 'Failed to get catalogs',
+          error: {
+            code: data.error?.code || 'UNKNOWN_ERROR',
+            message: data.error?.message || 'Failed to get catalogs',
+          },
         };
       }
 
@@ -212,7 +245,11 @@ export class UserConfigAPI {
     } catch (err) {
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'Failed to get catalogs',
+        error: {
+          code: 'UNKNOWN_ERROR',
+          message:
+            err instanceof Error ? err.message : 'Failed to get catalogs',
+        },
       };
     }
   }

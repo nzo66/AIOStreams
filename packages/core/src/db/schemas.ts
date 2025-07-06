@@ -43,7 +43,7 @@ const StreamProxyConfig = z.object({
   enabled: z.boolean().optional(),
   id: z.enum(constants.PROXY_SERVICES).optional(),
   url: z.string().optional(),
-  credentials: z.string().min(1).optional(),
+  credentials: z.string().optional(),
   publicIp: z.string().ip().optional(),
   proxiedAddons: z.array(z.string().min(1)).optional(),
   proxiedServices: z.array(z.string().min(1)).optional(),
@@ -215,6 +215,7 @@ const OptionDefinition = z.object({
           'patreon',
           'buymeacoffee',
           'github-sponsors',
+          'donate',
         ]),
         url: z.string().url(),
       })
@@ -251,10 +252,12 @@ const CatalogModification = z.object({
   shuffle: z.boolean().optional(), // shuffle the catalog
   persistShuffleFor: z.number().min(0).max(24).optional(), // persist the shuffle for a given amount of time (in hours)
   onlyOnDiscover: z.boolean().optional(), // only show the catalog on the discover page
+  disableSearch: z.boolean().optional(), // disable the search for the catalog
   enabled: z.boolean().optional(), // enable or disable the catalog
   rpdb: z.boolean().optional(), // use rpdb for posters if supported
   overrideType: z.string().min(1).optional(), // override the type of the catalog
   hideable: z.boolean().optional(), // hide the catalog from the home page
+  searchable: z.boolean().optional(), // property of whether the catalog is searchable (not a search only catalog)
   addonName: z.string().min(1).optional(), // the name of the addon that provides the catalog
 });
 
@@ -331,7 +334,10 @@ export const UserDataSchema = z.object({
   excludeUncachedFromServices: z.array(z.string().min(1)).optional(),
   excludeUncachedFromStreamTypes: z.array(StreamTypes).optional(),
   excludeUncachedMode: z.enum(['or', 'and']).optional(),
-  excludedFilterConditions: z.array(z.string().min(1).max(1000)).optional(),
+  excludedStreamExpressions: z.array(z.string().min(1).max(3000)).optional(),
+  requiredStreamExpressions: z.array(z.string().min(1).max(3000)).optional(),
+  preferredStreamExpressions: z.array(z.string().min(1).max(3000)).optional(),
+  includedStreamExpressions: z.array(z.string().min(1).max(3000)).optional(),
   groups: z
     .array(
       z.object({
@@ -366,6 +372,7 @@ export const UserDataSchema = z.object({
   size: SizeFilterOptions.optional(),
   hideErrors: z.boolean().optional(),
   hideErrorsForResources: z.array(ResourceSchema).optional(),
+  showStatistics: z.boolean().optional(),
   tmdbAccessToken: z.string().optional(),
   titleMatching: z
     .object({
@@ -385,6 +392,7 @@ export const UserDataSchema = z.object({
     .optional(),
   deduplicator: DeduplicatorOptions.optional(),
   precacheNextEpisode: z.boolean().optional(),
+  alwaysPrecache: z.boolean().optional(),
   services: ServiceList.optional(),
   presets: PresetList,
   catalogModifications: z.array(CatalogModification).optional(),
@@ -408,7 +416,7 @@ export const TABLES = {
 const strictManifestResourceSchema = z.object({
   name: z.enum(constants.RESOURCES),
   types: z.array(z.string()),
-  idPrefixes: z.array(z.string().min(1)).optional(),
+  idPrefixes: z.array(z.string().min(1)).or(z.null()).optional(),
 });
 
 export type StrictManifestResource = z.infer<
@@ -423,7 +431,7 @@ const ManifestResourceSchema = z.union([
 const ManifestExtraSchema = z.object({
   name: z.string().min(1),
   isRequired: z.boolean().optional(),
-  options: z.array(z.string()).optional(),
+  options: z.array(z.string().or(z.null())).or(z.null()).optional(),
   optionsLimit: z.number().min(1).optional(),
 });
 const ManifestCatalogSchema = z.object({
@@ -442,17 +450,17 @@ const AddonCatalogDefinitionSchema = z.object({
 export const ManifestSchema = z
   .object({
     id: z.string().min(1),
-    name: z.string().min(1),
-    description: z.string().min(1),
-    version: z.string().min(1),
+    name: z.string(),
+    description: z.string(),
+    version: z.string(),
     types: z.array(z.string()),
-    idPrefixes: z.array(z.string().min(1)).optional(),
+    idPrefixes: z.array(z.string().min(1)).or(z.null()).optional(),
     resources: z.array(ManifestResourceSchema),
     catalogs: z.array(ManifestCatalogSchema),
     addonCatalogs: z.array(AddonCatalogDefinitionSchema).optional(),
-    background: z.string().min(1).or(z.null()).optional(),
+    background: z.string().or(z.null()).optional(),
     logo: z.string().or(z.null()).optional(),
-    contactEmail: z.string().min(1).or(z.null()).optional(),
+    contactEmail: z.string().or(z.null()).optional(),
     behaviorHints: z
       .object({
         adult: z.boolean().optional(),
@@ -529,7 +537,7 @@ export type Stream = z.infer<typeof StreamSchema>;
 const TrailerSchema = z
   .object({
     source: z.string().min(1),
-    type: z.enum(['Trailer']),
+    type: z.enum(['Trailer', 'Clip']),
   })
   .passthrough();
 
@@ -625,6 +633,24 @@ export const AddonCatalogResponseSchema = z.object({
 export type AddonCatalogResponse = z.infer<typeof AddonCatalogResponseSchema>;
 export type AddonCatalog = z.infer<typeof AddonCatalogSchema>;
 
+export const ExtrasTypesSchema = z.enum(['skip', 'genre', 'search']);
+
+const ExtraSkipSchema = z.object({
+  skip: z.coerce.number(),
+});
+const ExtraGenreSchema = z.object({
+  genre: z.string(),
+});
+const ExtraSearchSchema = z.object({
+  search: z.string(),
+});
+export const ExtrasSchema = z.union([
+  ExtraSkipSchema,
+  ExtraGenreSchema,
+  ExtraSearchSchema,
+]);
+export type Extras = z.infer<typeof ExtrasSchema>;
+
 const ParsedFileSchema = z.object({
   releaseGroup: z.string().optional(),
   resolution: z.string().optional(),
@@ -652,12 +678,13 @@ export const ParsedStreamSchema = z.object({
   message: z.string().max(1000).optional(),
   regexMatched: z
     .object({
-      name: z.string().min(1).optional(),
+      name: z.string().optional(),
       pattern: z.string().min(1).optional(),
       index: z.number(),
     })
     .optional(),
   keywordMatched: z.boolean().optional(),
+  streamExpressionMatched: z.number().optional(),
   size: z.number().optional(),
   folderSize: z.number().optional(),
   type: StreamTypes,
@@ -728,12 +755,13 @@ export const AIOStream = StreamSchema.extend({
     message: z.string().max(1000).optional(),
     regexMatched: z
       .object({
-        name: z.string().min(1).optional(),
+        name: z.string().optional(),
         pattern: z.string().min(1).optional(),
         index: z.number(),
       })
       .optional(),
     keywordMatched: z.boolean().optional(),
+    streamExpressionMatched: z.number().optional(),
     size: z.number().optional(),
     folderSize: z.number().optional(),
     type: StreamTypes.optional(),
@@ -749,6 +777,7 @@ export const AIOStream = StreamSchema.extend({
       .optional(),
     duration: z.number().optional(),
     library: z.boolean().optional(),
+    id: z.string().min(1).optional(),
   }),
 });
 
@@ -803,13 +832,14 @@ const StatusResponseSchema = z.object({
   commit: z.string(),
   buildTime: z.string(),
   commitTime: z.string(),
-  users: z.number(),
+  users: z.number().or(z.null()),
   settings: z.object({
     baseUrl: z.string().url().optional(),
     addonName: z.string(),
     customHtml: z.string().optional(),
     protected: z.boolean(),
     regexFilterAccess: z.enum(['none', 'trusted', 'all']),
+    loggingSensitiveInfo: z.boolean(),
     tmdbApiAvailable: z.boolean(),
     forced: z.object({
       proxy: z.object({

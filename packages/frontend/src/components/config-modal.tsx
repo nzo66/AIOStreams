@@ -36,7 +36,7 @@ export function ConfigModal({
       const result = await UserConfigAPI.loadConfig(uuid, password);
 
       if (!result.success || !result.data) {
-        toast.error(result.error || 'Failed to load configuration');
+        toast.error(result.error?.message || 'Failed to load configuration');
         return;
       }
 

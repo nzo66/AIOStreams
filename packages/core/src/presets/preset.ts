@@ -215,7 +215,21 @@ export abstract class Preset {
           `Missing username or password for ${serviceId}. Please add a username and password.`
         );
       }
-      return `${serviceCredentials.username}:${serviceCredentials.password}`;
+      return {
+        username: serviceCredentials.username,
+        password: serviceCredentials.password,
+      };
+    }
+    if (serviceId === constants.PIKPAK_SERVICE) {
+      if (!serviceCredentials.email || !serviceCredentials.password) {
+        throw new Error(
+          `Missing email or password for ${serviceId}. Please add an email and password.`
+        );
+      }
+      return {
+        email: serviceCredentials.email,
+        password: serviceCredentials.password,
+      };
     }
     // Default case - API key
     const { apiKey } = serviceCredentials;

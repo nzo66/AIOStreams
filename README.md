@@ -1,130 +1,164 @@
-<p align="center"><img src="https://raw.githubusercontent.com/Viren070/AIOStreams/refs/heads/main/packages/frontend/public/assets/logo.png" /></p>
-<h1 align="center" id="title">AIOStreams</h1>
-
 <p align="center">
-  <a> 
-    <img src="https://img.shields.io/github/actions/workflow/status/viren070/aiostreams/deploy-docker.yml?style=for-the-badge" alt="Discord Server">
-  </a>
-  <a>
-    <img src="https://img.shields.io/github/v/release/viren070/aiostreams?style=for-the-badge" alt="version">
-  </a>
-  <a href="https://github.com/Viren070/AIOStreams/stargazers">
-    <img src="https://img.shields.io/github/stars/Viren070/AIOStreams?style=for-the-badge" alt="GitHub Stars">
-  </a>
-  <a href="https://hub.docker.com/r/viren070/aiostreams">
-    <img src="https://img.shields.io/docker/pulls/viren070/aiostreams?style=for-the-badge" alt="Docker Pulls">
-  </a>
-  <a href="https://discord.gg/9Dn9mSxW6t"> <!-- <<<--- REPLACE abcdefg with your Discord invite code -->
-    <img src="https://img.shields.io/badge/Discord-Join_Chat-7289DA?logo=discord&logoColor=white&style=for-the-badge" alt="Discord Server">
-  </a>
-
-  <!-- Add other badges here if needed -->
+  <img src="https://raw.githubusercontent.com/Viren070/AIOStreams/main/packages/frontend/public/assets/logo.png" alt="AIOStreams Logo" width="200"/>
 </p>
 
-## 📦 Description
+<h1 align="center">AIOStreams</h1>
 
-AIOStreams consolidates multiple Stremio addons and debrid services into a single, easily configurable addon. It allows highly customisable filtering, sorting, and formatting of results and supports proxying all your streams through [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy) or [StremThru](https://github.com/MunifTanjim/stremthru) for improved compatibility and IP restriction bypassing.
+<p align="center">
+  <strong>One addon to rule them all.</strong>
+  <br />
+  AIOStreams consolidates multiple Stremio addons and debrid services into a single, highly customisable super-addon.
+</p>
 
-## ✨ Key Features
+<p align="center">
+    <a href="https://github.com/Viren070/AIOStreams/actions/workflows/deploy-docker.yml"> 
+        <img src="https://img.shields.io/github/actions/workflow/status/viren070/aiostreams/deploy-docker.yml?style=for-the-badge&logo=github" alt="Build Status">
+    </a>
+    <a href="https://github.com/Viren070/AIOStreams/releases/latest">
+        <img src="https://img.shields.io/github/v/release/viren070/aiostreams?style=for-the-badge&logo=github" alt="Latest Release">
+    </a>
+    <a href="https://github.com/Viren070/AIOStreams/stargazers">
+        <img src="https://img.shields.io/github/stars/Viren070/AIOStreams?style=for-the-badge&logo=github" alt="GitHub Stars">
+    </a>
+    <a href="https://hub.docker.com/r/viren070/aiostreams">
+        <img src="https://img.shields.io/docker/pulls/viren070/aiostreams?style=for-the-badge&logo=docker" alt="Docker Pulls">
+    </a>
+    <a href="https://discord.gg/aiostreams">
+        <img src="https://img.shields.io/badge/Discord-Join_Chat-7289DA?logo=discord&logoColor=white&style=for-the-badge" alt="Discord Server">
+    </a>
+</p>
 
-- **🔗 Unified Addon Interface** - Aggregate results from various addons into a single, streamlined list.
-- **🌐 Wide Addon Support** - Configure and integrate results from various addons. Even an addon that is not officially supported can be added by providing its URL as a custom addon.
-- **⚙️ Easy Configuration** – You can simply enable the services and addons you use, and AIOStreams will handle the rest.
-- **🧰 Advanced Filtering**
-  - Filter results by resolution, quality, visual tags (e.g., HDR, DV), audio tags (e.g., Atmos, DTS), and video encodes.
-  - Filter by keywords present in the stream title.
-  - Filter by custom regex pattern. (*Requires an `API_KEY` to be set*)
-  - Specify minimum and maximum file sizes individually for episodes and movies.
-  - Prioritise and/or exclude specific languages.
-- **📊 Sophisticated Sorting** – Sort aggregated results by quality, resolution, size, cached status, visual tags, audio tags, encodes, seeders (for torrents), service provider, language, personal preferences, or multiple custom regex patterns (*Regex patterns require an `API_KEY` to be set*)
-- **🗂️ Intelligent Deduplication** - Intelligently removes duplicate results and prioritises specific services and addons for the same file based on your configuration.
-- **🚦 Result Limiting** - Limit the number of results shown per resolution.
-- **🎨 Customizable Formatting**:
-  - Choose from predefined formats (e.g., `gdrive`, `minimalistic-gdrive`, `torrentio`, `torbox`).
-  - Utilise a **Custom Formatter** system to define exactly how stream information is displayed. See the [Custom Formatter Wiki page](https://github.com/Viren070/AIOStreams/wiki/Custom-Formatter) for details.
-  - View the formatters in the live preview at the configuration page.
-- **🔁 Proxy Integration** - Proxy your streams through either [**MediaFlow**](https://github.com/mhdzumair/mediaflow-proxy) or [**StremThru**](https://github.com/MunifTanjim/stremthru) to allow for:
-  - **IP Restriction Bypass**: Bypass simultaneous IP restrictions on some services
-  - **Improved Compatibility**: Using a proxy improves compatibility with some apps and external players (like Infuse)
+---
 
-## 🧩 Supported Addons
+## ✨ What is AIOStreams?
 
-AIOStreams integrates results from, and has automated configuration for, the following addons:
+AIOStreams was created to give users ultimate control over their Stremio experience. Instead of juggling multiple addons with different configurations and limitations, AIOStreams acts as a central hub. It fetches results from all your favorite sources, then filters, sorts, and formats them according to *your* rules before presenting them in a single, clean list.
 
-- Torrentio
-- MediaFusion
-- Comet
-- Torbox Addon
-- Debridio
-- Jackettio / Stremio-Jackett
-- Peerflix
-- DMM Cast
-- Orion Stremio Addon
-- Easynews
-- Easynews++
-- [Stremio GDrive](https://github.com/Viren070/stremio-gdrive-addon)
-- Stremthru Store
+Whether you're a casual user who wants a simple, unified stream list or a power user who wants to fine-tune every aspect of your results, AIOStreams has you covered.
 
-You may also add any other Stremio addon by providing its **configured** URL as a `Custom Addon`. AIOStreams will fetch the results from that addon and display them in the same way as the other integrated addons. This is useful for addons that are not officially supported or for custom addons you may have created.
 
-> [!NOTE]
-> Avoid installing the addons directly in Stremio if you have enabled them within AIOStreams to prevent redundant requests. Enabling too many addons simultaneously is also generally not recommended as they often scrape overlapping sources.
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/6179efdb-abc9-4e0c-ae11-fb0e3ca9606a" alt="AIOStreams in action"  width="750" />
+</p>
+
+## 🚀 Key Features
+
+### 🔌 All Your Addons, One Interface
+- **Unified Results**: Aggregate streams from multiple addons into one consistently sorted and formatted list.
+- **Simplified Addon Management**: AIOStreams features a built-in addon marketplace. Many addons require you to install them multiple times to support different debrid services. AIOStreams handles this automatically. Just enable an addon from the marketplace, and AIOStreams dynamically applies your debrid keys, so you only have to configure it once.
+- **Automatic Updates**: Because addon manifests are generated dynamically, you get the latest updates and fixes without ever needing to reconfigure or reinstall.
+- **Custom Addon Support**: Add *any* Stremio addon by providing its configured URL. If it works in Stremio, it works here.
+- **Full Stremio Support**: AIOStreams doesn't just manage streams; it supports all Stremio resources, including catalogs, metadata, and even addon catalogs.
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/eb47063c-7519-4619-804f-ad84a34d6591" alt="Addon Configuration" width="750"/>
+</p>
+
+### 🔬 Advanced Filtering & Sorting Engine
+Because all addons are routed through AIOStreams, you only have to **configure your filters and sorting rules once**. This powerful, centralized engine offers far more options and flexibility than any individual addon.
+
+- **Granular Filtering**: Define `include` (prevents filtering), `required`, or `excluded` rules for a huge range of properties:
+    - **Video/Audio**: Resolution, quality, encodes, visual tags (`HDR`, `DV`), audio tags (`Atmos`), and channels.
+    - **Source**: Stream type (`Debrid`, `Usenet`, `P2P`), language, seeder ranges, and cached/uncached status (can be applied to specific addons/services).
+- **Preferred Lists**: Manually define and order a list of preferred properties to prioritize certain results, for example, always showing `HDR` streams first.
+- **Keyword & Regex Filtering**: Filter by simple keywords or complex regex patterns matched against filenames, indexers and release groups for ultimate precision.
+- **Accurate Title Matching**: Leverages the TMDB API to precisely match titles, years, and season/episode numbers, ensuring you always get the right content. This can be granularly applied to specific addons or content types.
+- **Powerful Conditional Engine**: Create dynamic rules with a simple yet powerful expression language.
+    - *Example*: Only exclude 720p streams if more than five 1080p streams are available: `count(resolution(streams, '1080p')) > 5 ? resolution(streams, '720p') : false`.
+    - Check the wiki for a [full function reference](https://github.com/Viren070/AIOStreams/wiki/Stream-Expression-Language).
+- **Customisable Deduplication**: Choose how duplicate streams are detected: by filename, infohash, and a unique "smart detect" hash generated from certain file attributes.
+- **Sophisticated Sorting**:
+    - Build your perfect sort order using any combination of criteria.
+    - Define separate sorting logic for movies, series, anime, and even for cached vs. uncached results.
+    - The sorting system automatically uses the rankings from your "Preferred Lists".
+
+### 🗂️ Unified Catalog Management
+Take control of your Stremio home page. AIOStreams lets you manage catalogs from all your addons in one place.
+- **Rename**: Rename both the name and the type of the catalog to whatever you want. (e.g. Changing Cinemeta's `Popular - Movies` to `Popular - 📺`)
+- **Reorder & Disable**: Arrange catalogs in your preferred order or hide the ones you don't use.
+- **Shuffle Catalogs**: Discover new content by shuffling the results of any catalog. You can even persist the shuffle for a set period.
+- **Enhanced Posters**: Automatically apply high-quality posters from [RPDB](https://rpdb.net/) to catalogs that provide a supported metadata source, even if the original addon doesn't support it.
+
+<p align="center">
+
+  <img src="https://github.com/user-attachments/assets/12c26705-a373-42b4-9164-0c23b9e9cbe6" alt="Filtering and Sorting Rules" width="750"/>
+</p>
+
+### 🎨 Total Customization
+- **Custom Stream Formatting**: Design exactly how stream information is displayed using a powerful templating system.
+- **Live Preview**: See your custom format changes in real-time as you build them.
+- **Predefined Formats**: Get started quickly with built-in formats, some created by me and others inspired by other popular addons like Torrentio and the TorBox Stremio Addon.
+- **[Custom Formatter Wiki](https://github.com/Viren070/AIOStreams/wiki/Custom-Formatter)**: Dive deep into the documentation to create your perfect stream title.
+
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/906cc3fc-16d1-4702-99c7-425b2445387b" alt="Custom Formatter UI" width="750"/>
+</p>
+
+<p align="center">
+  <sub>
+    This format was created by one of our community members in the 
+    <a href="https://discord.gg/aiostreams">Discord Server</a>
+  </sub>
+</p>
+
+
+### 🛡️ Proxy & Performance
+- **Proxy Integration**: Seamlessly proxy streams through **[MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy)** or **[StremThru](https://github.com/MunifTanjim/stremthru)**.
+- **Bypass IP Restrictions**: Essential for services that limit simultaneous connections from different IP addresses.
+- **Improve Compatibility**: Fixes playback issues with certain players (like Infuse) and addons.
+
+And much much more...
 
 ## 🚀 Getting Started
 
-There are several ways to use AIOStreams:
+Setting up AIOStreams is simple.
 
-1. 🔓 **Public Instance:**
+1.  **Choose a Hosting Method**
+    - **🔓 Public Instance**: Use the **[Community Instance (Hosted by ElfHosted)](https://aiostreams.elfhosted.com/configure)**. It's free, but rate-limited and has Torrentio disabled.
+    - **🛠️ Self-Host / Paid Hosting**: For full control and no rate limits, host it yourself (Docker) or use a paid service like **[ElfHosted](https://store.elfhosted.com/product/aiostreams/elf/viren070/)** (using this link supports the project!).
 
-   - **[Community Instance (Hosted by ElfHosted)](https://aiostreams.elfhosted.com/configure)**: A free-to-use, ratelimited, public instance. Note that the Torrentio addon is disabled on this instance. This instance avoids rate limits for other ElfHosted addons (like Comet, MediaFusion) but might be rate-limited by non-ElfHosted addons.
+2.  **Configure Your Addon**
+    - Open the `/stremio/configure` page of your AIOStreams instance in a web browser.
+    - Enable the addons you use, add your debrid API keys, and set up your filtering, sorting, and formatting rules.
 
-2. 🛠️ **Self-Hosting / Paid Hosting:**
-   - Host AIOStreams yourself using methods like Docker, Cloudflare Workers, or directly from the source.
-   - Use a paid hosting provider like [ElfHosted](https://store.elfhosted.com/product/aiostreams/elf/viren070/) (using this link supports the project!) or Heroku.
+3.  **Install**
+    - Click the "Install" button. This will open your Stremio addon compatible app and add your newly configured AIOStreams addon.
 
-> [!NOTE]
-> A [private ElfHosted instance](https://store.elfhosted.com/product/aiostreams/elf/viren070/) will support all addons, including Torrentio, avoid ratelimits of all ElfHosted addons, and also have no rate limit of its own.
-
-Regardless of the method you choose, once AIOStreams is accessible, navigate to its `/configure` page in your browser. Here, you can:
-
-- Set your filtering and sorting preferences.
-- Add API keys for services like Real-Debrid, Premiumize, etc.
-- Select and configure the upstream addons you want to integrate.
-- Finally, click "Install" to add the configured AIOStreams addon to the application of your choice. (AIOStreams is compatible with Stremio, Vidi, Fusion, Omni, and any other Stremio addon compatible application.)
-
-📘 See the Wiki for full guides:
-
+For detailed instructions, check out the Wiki:
 - **[Deployment Guide](https://github.com/Viren070/AIOStreams/wiki/Deployment)**
 - **[Configuration Guide](https://github.com/Viren070/AIOStreams/wiki/Configuration)**
-- **[Development Guide](https://github.com/Viren070/AIOStreams/wiki/Development)**
-
-## ❓ FAQ
-
-- **How does it work?** AIOStreams fetches results from each enabled addon, parses the stream information, applies your configured filtering and sorting rules, formats the results, and presents them as a single Stremio addon.
-- **Why was this created?** To provide a centralised way to manage multiple addons and debrid services with fine-grained control over filtering, sorting, and result presentation, which many individual addons lack.
-- **What is Stremio?** If you're new to Stremio, check out my [Stremio guide](https://guides.viren070.me/stremio).
 
 ## ❤️ Support the Project
 
-AIOStreams is a free and open-source project maintained by me and its contributors. If you find it useful, you can support its development in the following ways:
+AIOStreams is a passion project developed and maintained for free. If you find it useful, please consider supporting its development.
 
-- ⭐ **Star the Repository** - Show your support and help boost visibility.
-- ⭐ **Star on [Stremio Addons](https://beta.stremio-addons.net/addons/aiostreams)** - Spread the word.
-- 🤝 **Contributions Welcome** - Issues, pull requests, and ideas for improvement are always appreciated.
-- ☕ **Donate**
-  - [Ko-fi](https://ko-fi.com/viren070)
-  - [GitHub Sponsors](https://github.com/sponsors/Viren070)
+- ⭐ **Star the Repository** on [GitHub](https://github.com/Viren070/AIOStreams).
+- ⭐ **Star the Addon** in the [Stremio Community Catalog](https://beta.stremio-addons.net/addons/aiostreams).
+- 🤝 **Contribute**: Report issues, suggest features, or submit pull requests.
+- ☕ **Donate**:
+  - **[Ko-fi](https://ko-fi.com/viren070)**
+  - **[GitHub Sponsors](https://github.com/sponsors/Viren070)**
 
-Your support, whether through a star, contribution, or donation, helps keep the project alive and growing. ❤️
+---
+
+<h2 align="center"> ⭐ Star History</h2>
+
+<p align="center">
+  <img src="https://api.star-history.com/svg?repos=Viren070/AIOStreams&type=Date" href="https://www.star-history.com/#Viren070/AIOStreams&Date" alt="Filtering and Sorting Rules" width="750"/>
+</p>
+
+---
 
 ## ⚠️ Disclaimer
 
-AIOStreams and its developer do not host, store, or distribute any content. All content is sourced from the configured upstream addons. AIOStreams does not endorse or promote access to copyrighted content without authorisation. Users are responsible for ensuring they comply with all applicable laws and terms of service for the addons and content sources they use.
+AIOStreams is a tool for aggregating and managing data from other Stremio addons. It does not host, store, or distribute any content. The developer does not endorse or promote access to copyrighted content. Users are solely responsible for complying with all applicable laws and the terms of service for any addons or services they use with AIOStreams.
 
 ## 🙏 Credits
 
-- Thanks to [sleeyax/stremio-easynews-addon](https://github.com/Sleeyax/stremio-easynews-addon) for the repository structure and Dockerfile..
-- Thanks to all the developers of the upstream addons that AIOStreams integrates.
-- [Mhdzumair/MediaFlow](https://github.com/Mhdzumair/mediaflow-proxy) and [MunifTanjim/stremthru](https://github.com/MunifTanjim/stremthru) which allow stream proxying. 
-- Issue templates adapted from [5rahim/seanime](https://github.com/5rahim/seanime).
-- Custom formatter system inspired by and adapted from [diced/zipline](https://github.com/diced/zipline).
+This project wouldn't be possible without the foundational work of many others in the community, especially those who develop the addons that AIOStreams integrates. Special thanks to the developers of all the integrated addons, the creators of [mhdzumair/mediaflow-proxy](https://github.com/mhdzumair/mediaflow-proxy) and [MunifTanjim/stremthru](https://github.com/MunifTanjim/stremthru), and the open-source projects that inspired parts of AIOStreams' design:
+
+* UI Components and issue templates adapted with permission from [5rahim/seanime](https://github.com/5rahim/seanime) (which any anime enthusiast should definitely check out!)
+* [sleeyax/stremio-easynews-addon](https://github.com/sleeyax/stremio-easynews-addon) for the projects initial structure
+* Custom formatter system inspired by and adapted from [diced/zipline](https://github.com/diced/zipline).
+* Condition engine powered by [expr-eval](https://github.com/silentmatt/expr-eval)

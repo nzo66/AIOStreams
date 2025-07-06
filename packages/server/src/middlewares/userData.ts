@@ -100,6 +100,7 @@ export const userDataMiddleware = async (
 
     userData.encryptedPassword = encryptedPassword;
     userData.uuid = uuid;
+    userData.ip = req.userIp;
 
     if (resource !== 'configure') {
       try {
@@ -127,7 +128,6 @@ export const userDataMiddleware = async (
 
     // Attach validated data to request
     req.userData = userData;
-    req.userData.ip = req.userIp;
     req.uuid = uuid;
     next();
   } catch (error: any) {

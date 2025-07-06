@@ -275,7 +275,10 @@ const logStartupInfo = () => {
     logKeyValue('Max Addons:', Env.MAX_ADDONS.toString());
     logKeyValue('Max Groups:', Env.MAX_GROUPS.toString());
     logKeyValue('Max Keyword Filters:', Env.MAX_KEYWORD_FILTERS.toString());
-    logKeyValue('Max Condition Filters:', Env.MAX_CONDITION_FILTERS.toString());
+    logKeyValue(
+      'Max Stream Expression Filters:',
+      Env.MAX_STREAM_EXPRESSION_FILTERS.toString()
+    );
     logKeyValue(
       'Timeout Range:',
       `${formatMilliseconds(Env.MIN_TIMEOUT)} - ${formatMilliseconds(Env.MAX_TIMEOUT)}`
@@ -1051,6 +1054,105 @@ const logStartupInfo = () => {
     if (Env.DEFAULT_WEBSTREAMR_USER_AGENT) {
       logKeyValue('  User Agent:', Env.DEFAULT_WEBSTREAMR_USER_AGENT, '     ');
     }
+
+    // TMDB Addon
+    logKeyValue('TMDB Addon:', Env.TMDB_ADDON_URL);
+    if (Env.DEFAULT_TMDB_ADDON_TIMEOUT) {
+      logKeyValue(
+        '  Timeout:',
+        formatMilliseconds(Env.DEFAULT_TMDB_ADDON_TIMEOUT),
+        '     '
+      );
+    }
+    if (Env.DEFAULT_TMDB_ADDON_USER_AGENT) {
+      logKeyValue('  User Agent:', Env.DEFAULT_TMDB_ADDON_USER_AGENT, '     ');
+    }
+
+    // Torrents DB
+    logKeyValue('Torrents DB:', Env.TORRENTS_DB_URL);
+    if (Env.DEFAULT_TORRENTS_DB_TIMEOUT) {
+      logKeyValue(
+        '  Timeout:',
+        formatMilliseconds(Env.DEFAULT_TORRENTS_DB_TIMEOUT),
+        '     '
+      );
+    }
+    if (Env.DEFAULT_TORRENTS_DB_USER_AGENT) {
+      logKeyValue('  User Agent:', Env.DEFAULT_TORRENTS_DB_USER_AGENT, '     ');
+    }
+
+    // USA TV
+    logKeyValue('USA TV:', Env.USA_TV_URL);
+    if (Env.DEFAULT_USA_TV_TIMEOUT) {
+      logKeyValue(
+        '  Timeout:',
+        formatMilliseconds(Env.DEFAULT_USA_TV_TIMEOUT),
+        '     '
+      );
+    }
+    if (Env.DEFAULT_USA_TV_USER_AGENT) {
+      logKeyValue('  User Agent:', Env.DEFAULT_USA_TV_USER_AGENT, '     ');
+    }
+
+    // Argentina TV
+    logKeyValue('Argentina TV:', Env.ARGENTINA_TV_URL);
+    if (Env.DEFAULT_ARGENTINA_TV_TIMEOUT) {
+      logKeyValue(
+        '  Timeout:',
+        formatMilliseconds(Env.DEFAULT_ARGENTINA_TV_TIMEOUT),
+        '     '
+      );
+    }
+    if (Env.DEFAULT_ARGENTINA_TV_USER_AGENT) {
+      logKeyValue(
+        '  User Agent:',
+        Env.DEFAULT_ARGENTINA_TV_USER_AGENT,
+        '     '
+      );
+    }
+
+    // SubDL
+    logKeyValue('SubDL:', Env.SUBDL_URL);
+    if (Env.DEFAULT_SUBDL_TIMEOUT) {
+      logKeyValue(
+        '  Timeout:',
+        formatMilliseconds(Env.DEFAULT_SUBDL_TIMEOUT),
+        '     '
+      );
+    }
+    if (Env.DEFAULT_SUBDL_USER_AGENT) {
+      logKeyValue('  User Agent:', Env.DEFAULT_SUBDL_USER_AGENT, '     ');
+    }
+
+    // SubSource
+    logKeyValue('SubSource:', Env.SUBSOURCE_URL);
+    if (Env.DEFAULT_SUBSOURCE_TIMEOUT) {
+      logKeyValue(
+        '  Timeout:',
+        formatMilliseconds(Env.DEFAULT_SUBSOURCE_TIMEOUT),
+        '     '
+      );
+    }
+    if (Env.DEFAULT_SUBSOURCE_USER_AGENT) {
+      logKeyValue('  User Agent:', Env.DEFAULT_SUBSOURCE_USER_AGENT, '     ');
+    }
+
+    // OpenSubtitles V3 Plus
+    logKeyValue('OpenSubtitles V3 Plus:', Env.OPENSUBTITLES_V3_PLUS_URL);
+    if (Env.DEFAULT_OPENSUBTITLES_V3_PLUS_TIMEOUT) {
+      logKeyValue(
+        '  Timeout:',
+        formatMilliseconds(Env.DEFAULT_OPENSUBTITLES_V3_PLUS_TIMEOUT),
+        '     '
+      );
+    }
+    if (Env.DEFAULT_OPENSUBTITLES_V3_PLUS_USER_AGENT) {
+      logKeyValue(
+        '  User Agent:',
+        Env.DEFAULT_OPENSUBTITLES_V3_PLUS_USER_AGENT,
+        '     '
+      );
+    }
   });
 
   // Additional Features
@@ -1070,8 +1172,12 @@ const logStartupInfo = () => {
 
   // Maintenance & Cleanup
   logSection('MAINTENANCE', '🧹', () => {
-    logKeyValue('Prune Interval:', formatDuration(Env.PRUNE_INTERVAL));
-    logKeyValue('Prune Max Age:', `${Env.PRUNE_MAX_DAYS} days`);
+    if (Env.PRUNE_MAX_DAYS > 0) {
+      logKeyValue('Prune Interval:', formatDuration(Env.PRUNE_INTERVAL));
+      logKeyValue('Prune Max Age:', `${Env.PRUNE_MAX_DAYS} days`);
+    } else {
+      logKeyValue('Pruning :', '❌ DISABLED');
+    }
   });
 
   // Footer

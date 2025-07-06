@@ -59,6 +59,13 @@ body:
     validations:
       required: true
   - type: textarea
+    id: 'configExport'
+    attributes:
+      label: Configuration Export
+      description: Provide an export of your configuration with credentials excluded (make sure to double check it has nothing sensitive in it like custom addon URLs or overriden URLs etc.
+    validations:
+      required: true
+  - type: textarea
     id: 'screenshots'
     attributes:
       label: Screenshots

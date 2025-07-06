@@ -33,6 +33,13 @@ import { StreamingCatalogsPreset } from './streamingCatalogs';
 import { AnimeCatalogsPreset } from './animeCatalogs';
 import { DoctorWhoUniversePreset } from './doctorWhoUniverse';
 import { WebStreamrPreset } from './webstreamr';
+import { TMDBAddonPreset } from './tmdb';
+import { TorrentsDbPreset } from './torrentsDb';
+import { USATVPreset } from './usaTv';
+import { ArgentinaTVPreset } from './argentinaTv';
+import { OpenSubtitlesV3PlusPreset } from './opensubtitles-v3-plus';
+import { SubSourcePreset } from './subsource';
+import { SubDLPreset } from './subdl';
 
 const PRESET_LIST: string[] = [
   'custom',
@@ -41,21 +48,24 @@ const PRESET_LIST: string[] = [
   'mediafusion',
   'stremthruTorz',
   'stremthruStore',
-  'torbox',
   'jackettio',
   'peerflix',
+  'orion',
+  'torrents-db',
+  'streamfusion',
+  'debridio',
+  'torbox',
   'easynews',
   'easynewsPlus',
   'easynewsPlusPlus',
+  'dmm-cast',
   'nuvio-streams',
   'webstreamr',
-  'debridio',
+  'usa-tv',
+  'argentina-tv',
   'debridio-tv',
   'debridio-watchtower',
-  'streamfusion',
-  'dmm-cast',
-  'orion',
-  'opensubtitles',
+  'tmdb-addon',
   'debridio-tmdb',
   'debridio-tvdb',
   'streaming-catalogs',
@@ -68,6 +78,10 @@ const PRESET_LIST: string[] = [
   'star-wars-universe',
   'dc-universe',
   'doctor-who-universe',
+  'opensubtitles',
+  'opensubtitles-v3-plus',
+  'subsource',
+  'subdl',
   'aiostreams',
 ];
 
@@ -158,6 +172,20 @@ export class PresetManager {
         return DcUniversePreset;
       case 'doctor-who-universe':
         return DoctorWhoUniversePreset;
+      case 'tmdb-addon':
+        return TMDBAddonPreset;
+      case 'torrents-db':
+        return TorrentsDbPreset;
+      case 'usa-tv':
+        return USATVPreset;
+      case 'argentina-tv':
+        return ArgentinaTVPreset;
+      case 'opensubtitles-v3-plus':
+        return OpenSubtitlesV3PlusPreset;
+      case 'subsource':
+        return SubSourcePreset;
+      case 'subdl':
+        return SubDLPreset;
       default:
         throw new Error(`Preset ${id} not found`);
     }

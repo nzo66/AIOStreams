@@ -51,17 +51,11 @@ function Content() {
   >([]);
   const { status } = useStatus();
   const baseUrl = status?.settings?.baseUrl || window.location.origin;
-  const [addonPassword, setAddonPassword] = React.useState('');
   const importFileRef = React.useRef<HTMLInputElement>(null);
   const installModal = useDisclosure(false);
+  const passwordModal = useDisclosure(false);
   const [filterCredentialsInExport, setFilterCredentialsInExport] =
     React.useState(false);
-
-  React.useEffect(() => {
-    if (userData?.addonPassword) {
-      setAddonPassword(userData.addonPassword);
-    }
-  }, [userData]);
 
   React.useEffect(() => {
     const requirements: string[] = [];
@@ -79,8 +73,19 @@ function Content() {
     setPasswordRequirements(requirements);
   }, [newPassword, uuid, password]);
 
-  const handleSave = async (e?: React.FormEvent<HTMLFormElement>) => {
+  const handleSave = async (
+    e?: React.FormEvent<HTMLFormElement>,
+    authenticated: boolean = false
+  ) => {
     e?.preventDefault();
+    if (
+      status?.settings.protected &&
+      !authenticated &&
+      !userData.addonPassword
+    ) {
+      passwordModal.open();
+      return;
+    }
     if (passwordRequirements.length > 0) {
       toast.error('Password requirements not met');
       return;
@@ -93,8 +98,18 @@ function Content() {
         : await UserConfigAPI.createConfig(userData, newPassword);
 
       if (!result.success) {
-        toast.error(result.error || 'Failed to save configuration');
-        return;
+        if (result.error?.code === 'USER_INVALID_PASSWORD') {
+          toast.error('Your addon password is incorrect');
+          setUserData((prev) => ({
+            ...prev,
+            addonPassword: '',
+          }));
+          passwordModal.open();
+          return;
+        }
+        throw new Error(
+          result.error?.message || 'Failed to save configuration'
+        );
       }
 
       if (!uuid && result.data) {
@@ -107,10 +122,17 @@ function Content() {
       } else if (uuid && result.success) {
         toast.success('Configuration updated successfully');
       }
+
+      if (authenticated) {
+        passwordModal.close();
+      }
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : 'Failed to save configuration'
       );
+      if (authenticated) {
+        passwordModal.close();
+      }
     } finally {
       setLoading(false);
     }
@@ -146,6 +168,7 @@ function Content() {
       const dataStr = JSON.stringify(
         {
           ...userData,
+          uuid: filterCredentialsInExport ? undefined : userData.uuid,
           tmdbAccessToken: filterCredentialsInExport
             ? undefined
             : userData.tmdbAccessToken,
@@ -159,6 +182,13 @@ function Content() {
             ...service,
             credentials: filterCredentialsInExport ? {} : service.credentials,
           })),
+          proxy: {
+            ...userData?.proxy,
+            credentials: filterCredentialsInExport
+              ? undefined
+              : userData?.proxy?.credentials,
+            url: filterCredentialsInExport ? undefined : userData?.proxy?.url,
+          },
           presets: userData?.presets?.map((preset) => {
             const presetMeta = status?.settings.presets.find(
               (p) => p.ID === preset.type
@@ -263,29 +293,6 @@ function Content() {
                   password once set, so please choose wisely, and remember it.
                 </p>
               </div>
-              {status?.settings.protected && (
-                <>
-                  <PasswordInput
-                    label="Addon Password"
-                    value={addonPassword}
-                    required
-                    placeholder="Enter the password for this instance"
-                    help={
-                      <>
-                        This would be the value of the{' '}
-                        <code>ADDON_PASSWORD</code> environment variable
-                      </>
-                    }
-                    onValueChange={(value) => {
-                      setAddonPassword(value);
-                      setUserData((prev) => ({
-                        ...prev,
-                        addonPassword: value,
-                      }));
-                    }}
-                  />
-                </>
-              )}
               <Button intent="white" type="submit" loading={loading} rounded>
                 Create
               </Button>
@@ -294,8 +301,8 @@ function Content() {
         ) : (
           <>
             <SettingsCard
-              title="Update Configuration"
-              description="Update your configuration now with the current configuration."
+              title="Save Configuration"
+              description="Save your configuration to your account by clicking Update below."
             >
               <div className="flex items-start gap-1">
                 <Alert
@@ -325,32 +332,8 @@ function Content() {
                 />
               </div>
               <form onSubmit={handleSave}>
-                {status?.settings.protected && (
-                  <>
-                    <PasswordInput
-                      label="Addon Password"
-                      id="password"
-                      value={addonPassword}
-                      required
-                      placeholder="Enter the password for this instance"
-                      help={
-                        <>
-                          This would be the value of the{' '}
-                          <code>ADDON_PASSWORD</code> environment variable
-                        </>
-                      }
-                      onValueChange={(value) => {
-                        setAddonPassword(value);
-                        setUserData((prev) => ({
-                          ...prev,
-                          addonPassword: value,
-                        }));
-                      }}
-                    />
-                  </>
-                )}
                 <Button type="submit" intent="white" loading={loading} rounded>
-                  Update
+                  Save
                 </Button>
               </form>
             </SettingsCard>
@@ -431,6 +414,36 @@ function Content() {
             </SettingsCard>
           </>
         )}
+
+        <Modal
+          open={passwordModal.isOpen}
+          onOpenChange={passwordModal.toggle}
+          title="Addon Password"
+          description="Enter the password for this instance"
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSave(e, true);
+            }}
+          >
+            <PasswordInput
+              label="Addon Password"
+              value={userData.addonPassword}
+              required
+              placeholder="Enter the password for this instance"
+              onValueChange={(value) =>
+                setUserData((prev) => ({
+                  ...prev,
+                  addonPassword: value,
+                }))
+              }
+            />
+            <Button type="submit" intent="white" loading={loading} rounded>
+              Save
+            </Button>
+          </form>
+        </Modal>
 
         <SettingsCard
           title="Backups"

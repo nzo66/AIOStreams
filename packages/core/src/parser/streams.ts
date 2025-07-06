@@ -1,7 +1,8 @@
-import { Stream, ParsedStream, Addon } from '../db';
+import { Stream, ParsedStream, Addon, ParsedFile } from '../db';
 import { constants, createLogger, FULL_LANGUAGE_MAPPING } from '../utils';
 import FileParser from './file';
 const logger = createLogger('parser');
+
 class StreamParser {
   private count = 0;
   get errorRegexes(): { pattern: RegExp; message: string }[] | undefined {
@@ -51,7 +52,7 @@ class StreamParser {
 
   constructor(protected readonly addon: Addon) {}
 
-  parse(stream: Stream): ParsedStream {
+  parse(stream: Stream): ParsedStream | { skip: true } {
     let parsedStream: ParsedStream = {
       id: this.getRandomId(),
       addon: this.addon,
@@ -77,8 +78,28 @@ class StreamParser {
       return parsedStream;
     }
 
+    const normaliseText = (text: string) => {
+      return text
+        .replace(
+          /(mkv|mp4|avi|mov|wmv|flv|webm|m4v|mpg|mpeg|3gp|3g2|m2ts|ts|vob|ogv|ogm|divx|xvid|rm|rmvb|asf|mxf|mka|mks|mk3d|webm|f4v|f4p|f4a|f4b)$/i,
+          ''
+        )
+        .replace(/[^\p{L}\p{N}+]/gu, '')
+
+        .toLowerCase()
+        .trim();
+    };
+
     parsedStream.filename = this.getFilename(stream, parsedStream);
     parsedStream.folderName = this.getFolder(stream, parsedStream);
+    if (
+      parsedStream.folderName &&
+      parsedStream.filename &&
+      normaliseText(parsedStream.folderName) ===
+        normaliseText(parsedStream.filename)
+    ) {
+      parsedStream.folderName = undefined;
+    }
     parsedStream.size = this.getSize(stream, parsedStream);
     parsedStream.folderSize = this.getFolderSize(stream, parsedStream);
     parsedStream.indexer = this.getIndexer(stream, parsedStream);
@@ -93,26 +114,7 @@ class StreamParser {
     parsedStream.age = this.getAge(stream, parsedStream);
     parsedStream.message = this.getMessage(stream, parsedStream);
 
-    parsedStream.parsedFile = {
-      visualTags: [],
-      audioTags: [],
-      audioChannels: [],
-      ...(parsedStream.filename ? FileParser.parse(parsedStream.filename) : {}),
-      languages: Array.from(
-        new Set([
-          ...(parsedStream.parsedFile?.languages ?? []),
-          ...this.getLanguages(stream, parsedStream),
-        ])
-      ),
-    };
-
-    if (parsedStream.folderName && parsedStream.parsedFile) {
-      const parsedFolder = FileParser.parse(parsedStream.folderName);
-      parsedStream.parsedFile = {
-        ...parsedStream.parsedFile,
-        title: parsedFolder.title, // prefer titles from the folder name if it exists
-      };
-    }
+    parsedStream.parsedFile = this.getParsedFile(stream, parsedStream);
 
     parsedStream.torrent = {
       infoHash:
@@ -378,6 +380,56 @@ class StreamParser {
     throw new Error('Invalid stream, missing a required stream property');
   }
 
+  protected getParsedFile(
+    stream: Stream,
+    parsedStream: ParsedStream
+  ): ParsedFile | undefined {
+    const folderParsed = parsedStream.folderName
+      ? FileParser.parse(parsedStream.folderName)
+      : undefined;
+    const fileParsed = parsedStream.filename
+      ? FileParser.parse(parsedStream.filename)
+      : undefined;
+
+    return {
+      title: folderParsed?.title || fileParsed?.title,
+      year: fileParsed?.year || folderParsed?.year,
+      season: fileParsed?.season || folderParsed?.season,
+      episode: fileParsed?.episode || folderParsed?.episode,
+      seasons: fileParsed?.seasons || folderParsed?.seasons,
+      resolution: fileParsed?.resolution || folderParsed?.resolution,
+      quality: fileParsed?.quality || folderParsed?.quality,
+      encode: fileParsed?.encode || folderParsed?.encode,
+      releaseGroup: fileParsed?.releaseGroup || folderParsed?.releaseGroup,
+      seasonEpisode: fileParsed?.seasonEpisode || folderParsed?.seasonEpisode,
+      visualTags: Array.from(
+        new Set([
+          ...(folderParsed?.visualTags ?? []),
+          ...(fileParsed?.visualTags ?? []),
+        ])
+      ),
+      audioTags: Array.from(
+        new Set([
+          ...(folderParsed?.audioTags ?? []),
+          ...(fileParsed?.audioTags ?? []),
+        ])
+      ),
+      audioChannels: Array.from(
+        new Set([
+          ...(folderParsed?.audioChannels ?? []),
+          ...(fileParsed?.audioChannels ?? []),
+        ])
+      ),
+      languages: Array.from(
+        new Set([
+          ...(folderParsed?.languages ?? []),
+          ...(fileParsed?.languages ?? []),
+          ...this.getLanguages(stream, parsedStream),
+        ])
+      ),
+    };
+  }
+
   /**
    * Extracts languages from the stream description using country flags.
    * @param stream - The stream object containing the description.
@@ -433,12 +485,15 @@ class StreamParser {
     return this.addon.library ?? false;
   }
 
-  protected calculateBytesFromSizeString(size: string): number | undefined {
+  protected calculateBytesFromSizeString(
+    size: string,
+    sizeRegex?: RegExp
+  ): number | undefined {
     const k = this.sizeK;
-    if (!this.sizeRegex) {
+    const sizePattern = sizeRegex || this.sizeRegex;
+    if (!sizePattern) {
       return undefined;
     }
-    const sizePattern = this.sizeRegex;
     const match = size.match(sizePattern);
     if (!match) return 0;
     const value = parseFloat(match[1]);

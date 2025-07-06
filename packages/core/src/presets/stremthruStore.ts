@@ -190,7 +190,7 @@ export class StremthruStorePreset extends Preset {
       }),
       hide_catalog: false,
       hide_stream: false,
-      web_dl: options.webDl ?? false,
+      webdl: options.webDl ?? false,
     });
 
     return `${url}${configString ? '/' + configString : ''}/manifest.json`;

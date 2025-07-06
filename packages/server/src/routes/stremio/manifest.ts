@@ -27,7 +27,7 @@ const manifest = async (config?: UserData): Promise<Manifest> => {
   let resources: Manifest['resources'] = [];
   let addonCatalogs: Manifest['addonCatalogs'] = [];
   if (config) {
-    const aiostreams = new AIOStreams(config, false);
+    const aiostreams = new AIOStreams(config, true);
 
     await aiostreams.initialise();
 
@@ -38,17 +38,21 @@ const manifest = async (config?: UserData): Promise<Manifest> => {
   return {
     name: config?.addonName || Env.ADDON_NAME,
     id: addonId,
-    version: Env.VERSION ?? '0.0.0',
+    version: Env.VERSION === 'unknown' ? '0.0.0' : Env.VERSION,
     description: config?.addonDescription || Env.DESCRIPTION,
     catalogs,
     resources,
+    types: resources.reduce((types, resource) => {
+      const resourceTypes =
+        typeof resource === 'string' ? [resource] : resource.types;
+      return [...new Set([...types, ...resourceTypes])];
+    }, [] as string[]),
     background:
       config?.addonBackground ||
       'https://raw.githubusercontent.com/Viren070/AIOStreams/refs/heads/main/packages/frontend/public/assets/background.png',
     logo:
       config?.addonLogo ||
       'https://raw.githubusercontent.com/Viren070/AIOStreams/refs/heads/main/packages/frontend/public/assets/logo.png',
-    types: [],
     behaviorHints: {
       configurable: true,
       configurationRequired: config ? false : true,

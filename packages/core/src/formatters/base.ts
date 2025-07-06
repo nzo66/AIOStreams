@@ -347,8 +347,13 @@ export abstract class BaseFormatter {
           return value.toUpperCase();
         case mod == 'lower':
           return value.toLowerCase();
-        case mod == 'title':
-          return value.charAt(0).toUpperCase() + value.slice(1);
+        case mod == 'title': {
+          return value
+            .split(' ')
+            .map((word) => word.toLowerCase())
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+        }
         case mod == 'length':
           return value.length.toString();
         case mod == 'reverse':

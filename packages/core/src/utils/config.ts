@@ -16,9 +16,9 @@ import { Env } from './env';
 import { createLogger, maskSensitiveInfo } from './logger';
 import { ZodError } from 'zod';
 import {
-  GroupConditionParser,
-  SelectConditionParser,
-} from '../parser/conditions';
+  GroupConditionEvaluator,
+  StreamSelector,
+} from '../parser/streamExpression';
 import { RPDB } from './rpdb';
 import { FeatureControl } from './feature';
 import { compileRegex } from './regex';
@@ -259,13 +259,25 @@ export async function validateConfig(
 
   if (Env.ADDON_PASSWORD && config.addonPassword !== Env.ADDON_PASSWORD) {
     throw new Error(
-      'The password in the config does not match the password in the environment variables'
+      'Invalid addon password. Please enter the value of the ADDON_PASSWORD environment variable '
     );
   }
   const validations = {
-    'excluded filter conditions': [
-      config.excludedFilterConditions,
-      Env.MAX_CONDITION_FILTERS,
+    'excluded stream expressions': [
+      config.excludedStreamExpressions,
+      Env.MAX_STREAM_EXPRESSION_FILTERS,
+    ],
+    'required stream expressions': [
+      config.requiredStreamExpressions,
+      Env.MAX_STREAM_EXPRESSION_FILTERS,
+    ],
+    'preferred stream expressions': [
+      config.preferredStreamExpressions,
+      Env.MAX_STREAM_EXPRESSION_FILTERS,
+    ],
+    'included stream expressions': [
+      config.includedStreamExpressions,
+      Env.MAX_STREAM_EXPRESSION_FILTERS,
     ],
     'excluded keywords': [config.excludedKeywords, Env.MAX_KEYWORD_FILTERS],
     'included keywords': [config.includedKeywords, Env.MAX_KEYWORD_FILTERS],
@@ -296,7 +308,14 @@ export async function validateConfig(
         );
       }
       instanceIds.add(preset.instanceId);
-      validatePreset(preset);
+      try {
+        validatePreset(preset);
+      } catch (error) {
+        if (!skipErrorsFromAddonsOrProxies) {
+          throw error;
+        }
+        logger.warn(`Invalid preset ${preset.instanceId}: ${error}`);
+      }
     }
   }
 
@@ -307,13 +326,18 @@ export async function validateConfig(
   }
 
   // validate excluded filter condition
-  if (config.excludedFilterConditions) {
-    for (const condition of config.excludedFilterConditions) {
-      try {
-        await SelectConditionParser.testSelect([], condition);
-      } catch (error) {
-        throw new Error(`Invalid excluded filter condition: ${error}`);
-      }
+  const streamExpressions = [
+    ...(config.excludedStreamExpressions ?? []),
+    ...(config.requiredStreamExpressions ?? []),
+    ...(config.preferredStreamExpressions ?? []),
+    ...(config.includedStreamExpressions ?? []),
+  ];
+
+  for (const expression of streamExpressions) {
+    try {
+      await StreamSelector.testSelect(expression);
+    } catch (error) {
+      throw new Error(`Invalid stream expression: ${expression}: ${error}`);
     }
   }
 
@@ -488,14 +512,10 @@ function validatePreset(preset: PresetObject) {
 
   const optionMetas = presetMeta.OPTIONS;
 
-  for (const [optionId, optionValue] of Object.entries(preset.options)) {
-    const optionMeta = optionMetas.find((option) => option.id === optionId);
-    if (!optionMeta) {
-      continue;
-      // throw new Error(`Option ${optionId} not found in preset ${preset.id}`);
-    }
+  for (const optionMeta of optionMetas) {
+    const optionValue = preset.options[optionMeta.id];
     try {
-      preset.options[optionId] = validateOption(optionMeta, optionValue);
+      preset.options[optionMeta.id] = validateOption(optionMeta, optionValue);
     } catch (error) {
       throw new Error(
         `The value for option '${optionMeta.name}' in preset '${presetMeta.NAME}' is invalid: ${error}`
@@ -517,7 +537,7 @@ async function validateGroup(group: Group) {
   // we must be able to parse the condition
   let result;
   try {
-    result = await GroupConditionParser.testParse(group.condition);
+    result = await GroupConditionEvaluator.testEvaluate(group.condition);
   } catch (error: any) {
     throw new Error(
       `Your group condition - '${group.condition}' - is invalid: ${error.message}`
@@ -535,12 +555,29 @@ function validateOption(
   value: any,
   decryptValues: boolean = false
 ): any {
+  if (value === undefined) {
+    if (option.required) {
+      throw new Error(`Option ${option.id} is required, got ${value}`);
+    }
+    return value;
+  }
   if (option.type === 'multi-select') {
     if (!Array.isArray(value)) {
       throw new Error(
         `Option ${option.id} must be an array, got ${typeof value}`
       );
     }
+    if (option.constraints?.max && value.length > option.constraints.max) {
+      throw new Error(
+        `Option ${option.id} must be at most ${option.constraints.max} items, got ${value.length}`
+      );
+    }
+    if (option.constraints?.min && value.length < option.constraints.min) {
+      throw new Error(
+        `Option ${option.id} must be at least ${option.constraints.min} items, got ${value.length}`
+      );
+    }
+    return value;
   }
 
   if (option.type === 'select') {
@@ -565,12 +602,32 @@ function validateOption(
         `Option ${option.id} must be a number, got ${typeof value}`
       );
     }
+    if (option.constraints?.min && value < option.constraints.min) {
+      throw new Error(
+        `Option ${option.id} must be at least ${option.constraints.min}, got ${value}`
+      );
+    }
+    if (option.constraints?.max && value > option.constraints.max) {
+      throw new Error(
+        `Option ${option.id} must be at most ${option.constraints.max}, got ${value}`
+      );
+    }
   }
 
   if (option.type === 'string') {
     if (typeof value !== 'string') {
       throw new Error(
         `Option ${option.id} must be a string, got ${typeof value}`
+      );
+    }
+    if (option.constraints?.min && value.length < option.constraints.min) {
+      throw new Error(
+        `Option ${option.id} must be at least ${option.constraints.min} characters, got ${value.length}`
+      );
+    }
+    if (option.constraints?.max && value.length > option.constraints.max) {
+      throw new Error(
+        `Option ${option.id} must be at most ${option.constraints.max} characters, got ${value.length}`
       );
     }
   }
@@ -603,10 +660,6 @@ function validateOption(
         `Option ${option.id} must be a string, got ${typeof value}`
       );
     }
-  }
-
-  if (option.required && value === undefined) {
-    throw new Error(`Option ${option.id} is required, got ${value}`);
   }
 
   return value;
@@ -644,10 +697,6 @@ async function validateProxy(
       throw new Error('Proxy credentials are required');
     }
 
-    proxy.credentials = decodeURIComponent(proxy.credentials);
-    proxy.url = proxy.url.startsWith('aioEncrypt')
-      ? decodeURIComponent(proxy.url)
-      : proxy.url;
     if (isEncrypted(proxy.credentials) && decryptCredentials) {
       const { success, data, error } = decryptString(proxy.credentials);
       if (!success) {

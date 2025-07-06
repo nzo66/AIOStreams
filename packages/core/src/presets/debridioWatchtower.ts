@@ -25,11 +25,7 @@ class DebridioWatchtowerStreamParser extends StreamParser {
 
     parsedStream.filename = this.getFilename(stream, parsedStream);
 
-    parsedStream.type = this.getStreamType(
-      stream,
-      parsedStream.service,
-      parsedStream
-    );
+    parsedStream.type = 'http';
 
     if (parsedStream.filename) {
       parsedStream.parsedFile = FileParser.parse(parsedStream.filename);
@@ -51,16 +47,6 @@ class DebridioWatchtowerStreamParser extends StreamParser {
     parsedStream.folderName = undefined;
 
     parsedStream.message = stream.description?.replace(/\d+p?/g, '');
-
-    parsedStream.torrent = {
-      infoHash:
-        parsedStream.type === 'p2p'
-          ? (stream.infoHash ?? undefined)
-          : this.getInfoHash(stream, parsedStream),
-      seeders: this.getSeeders(stream, parsedStream),
-      sources: stream.sources ?? undefined,
-      fileIdx: stream.fileIdx ?? undefined,
-    };
 
     return parsedStream;
   }

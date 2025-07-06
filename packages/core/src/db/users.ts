@@ -34,6 +34,11 @@ export class UserRepository {
         );
       }
       let validatedConfig: UserData;
+      if (Env.ADDON_PASSWORD && config.addonPassword !== Env.ADDON_PASSWORD) {
+        return Promise.reject(
+          new APIError(constants.ErrorCode.USER_INVALID_PASSWORD)
+        );
+      }
       config.trusted = false;
       try {
         // don't skip errors, but don't decrypt credentials
@@ -203,6 +208,14 @@ export class UserRepository {
         if (!currentUser.rows.length) {
           throw new APIError(constants.ErrorCode.USER_NOT_FOUND);
         }
+
+        if (Env.ADDON_PASSWORD && config.addonPassword !== Env.ADDON_PASSWORD) {
+          throw new APIError(
+            constants.ErrorCode.USER_INVALID_PASSWORD,
+            undefined,
+            'Invalid password'
+          );
+        }
         let validatedConfig: UserData;
         try {
           validatedConfig = await validateConfig(config, false, false);
@@ -290,6 +303,9 @@ export class UserRepository {
   }
 
   static async pruneUsers(maxDays: number = 30): Promise<number> {
+    if (maxDays < 0) {
+      return 0;
+    }
     try {
       const query =
         db.getDialect() === 'postgres'

@@ -115,7 +115,7 @@ export class Wrapper {
         try {
           const res = await makeRequest(
             this.manifestUrl,
-            this.addon.timeout,
+            Env.MANIFEST_TIMEOUT,
             this.addon.headers,
             this.addon.ip
           );
@@ -129,7 +129,7 @@ export class Wrapper {
             logger.error(formatZodError(manifest.error));
             logger.error(JSON.stringify(data, null, 2));
             throw new Error(
-              `Failed to parse manifest for ${this.getAddonName(this.addon)}`
+              `Manifest response could not be parsed: ${formatZodError(manifest.error)}`
             );
           }
           return manifest.data;
@@ -158,6 +158,7 @@ export class Wrapper {
     const streams = await this.makeResourceRequest(
       'stream',
       { type, id },
+      this.addon.timeout,
       validator,
       Env.STREAM_CACHE_TTL != -1,
       Env.STREAM_CACHE_TTL
@@ -166,7 +167,9 @@ export class Wrapper {
       ? PresetManager.fromId(this.addon.presetType).getParser()
       : StreamParser;
     const parser = new Parser(this.addon);
-    return streams.map((stream: Stream) => parser.parse(stream));
+    return streams
+      .flatMap((stream: Stream) => parser.parse(stream))
+      .filter((stream: any) => !stream.skip);
   }
 
   async getCatalog(
@@ -181,6 +184,7 @@ export class Wrapper {
     return await this.makeResourceRequest(
       'catalog',
       { type, id, extras },
+      Env.CATALOG_TIMEOUT,
       validator,
       Env.CATALOG_CACHE_TTL != -1,
       Env.CATALOG_CACHE_TTL
@@ -201,6 +205,7 @@ export class Wrapper {
     const meta: Meta = await this.makeResourceRequest(
       'meta',
       { type, id },
+      Env.META_TIMEOUT,
       validator,
       Env.META_CACHE_TTL != -1,
       Env.META_CACHE_TTL
@@ -220,6 +225,7 @@ export class Wrapper {
     return await this.makeResourceRequest(
       'subtitles',
       { type, id, extras },
+      this.addon.timeout,
       validator,
       Env.SUBTITLE_CACHE_TTL != -1,
       Env.SUBTITLE_CACHE_TTL
@@ -238,24 +244,21 @@ export class Wrapper {
     return await this.makeResourceRequest(
       'addon_catalog',
       { type, id },
+      Env.CATALOG_TIMEOUT,
       validator,
       Env.ADDON_CATALOG_CACHE_TTL != -1,
       Env.ADDON_CATALOG_CACHE_TTL
     );
   }
 
-  async makeRequest(url: string) {
-    return await makeRequest(
-      url,
-      this.addon.timeout,
-      this.addon.headers,
-      this.addon.ip
-    );
+  async makeRequest(url: string, timeout: number = this.addon.timeout) {
+    return await makeRequest(url, timeout, this.addon.headers, this.addon.ip);
   }
 
   private async makeResourceRequest<T>(
     resource: Resource,
     params: ResourceParams,
+    timeout: number,
     validator: (data: unknown) => T,
     cache: boolean = false,
     cacheTtl: number = RESOURCE_TTL
@@ -277,7 +280,7 @@ export class Wrapper {
     try {
       const res = await makeRequest(
         url,
-        this.addon.timeout,
+        timeout,
         this.addon.headers,
         this.addon.ip
       );

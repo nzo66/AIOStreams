@@ -1,9 +1,52 @@
-import { Addon, Option, UserData } from '../db';
+import {
+  Addon,
+  Option,
+  ParsedFile,
+  ParsedStream,
+  Stream,
+  UserData,
+} from '../db';
 import { Preset, baseOptions } from './preset';
-import { constants, Env } from '../utils';
+import { constants, createLogger, Env } from '../utils';
 import { debridioSocialOption } from './debridio';
+import { FileParser, StreamParser } from '../parser';
+const logger = createLogger('DebridioTvPreset');
+class DebridioTvStreamParser extends StreamParser {
+  protected override getParsedFile(
+    stream: Stream,
+    parsedStream: ParsedStream
+  ): ParsedFile | undefined {
+    const parsed = stream.name ? FileParser.parse(stream.name) : undefined;
+    if (!parsed) {
+      return undefined;
+    }
+    logger.debug(`resolution: ${parsed}`);
 
+    return {
+      ...parsed,
+      title: undefined,
+    };
+  }
+  protected override getFilename(
+    stream: Stream,
+    currentParsedStream: ParsedStream
+  ): string | undefined {
+    logger.debug('returning undefined for filename');
+    return undefined;
+  }
+
+  protected override getMessage(
+    stream: Stream,
+    currentParsedStream: ParsedStream
+  ): string | undefined {
+    return `${stream.name} - ${stream.description}`;
+  }
+}
 export class DebridioTvPreset extends Preset {
+  static override getParser(): typeof StreamParser {
+    return DebridioTvStreamParser;
+  }
+
   static override get METADATA() {
     const supportedResources = [
       constants.CATALOG_RESOURCE,
@@ -31,6 +74,10 @@ export class DebridioTvPreset extends Preset {
       {
         label: 'Chile',
         value: 'cl',
+      },
+      {
+        label: 'Italy',
+        value: 'it',
       },
       {
         label: 'Estonia',

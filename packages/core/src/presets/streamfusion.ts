@@ -136,12 +136,8 @@ export class StreamFusionPreset extends Preset {
       return [this.generateAddon(userData, options, [])];
     }
 
-    const usableServices = this.getUsableServices(userData, options.services);
-    if (!usableServices || usableServices.length === 0) {
-      throw new Error(
-        `${this.METADATA.NAME} requires at least one usable service from the list of supported services: ${this.METADATA.SUPPORTED_SERVICES.map((service) => constants.SERVICE_DETAILS[service].name).join(', ')}`
-      );
-    }
+    const usableServices =
+      this.getUsableServices(userData, options.services) || [];
 
     return [
       this.generateAddon(
@@ -244,19 +240,19 @@ export class StreamFusionPreset extends Preset {
         : '',
       TBUsenet: options.torboxUsenet,
       TBSearch: options.torboxSearch,
-      maxSize: 18,
+      maxSize: 150,
       exclusionKeywords: [],
       languages: ['en', 'fr', 'multi'],
       sort: 'quality',
-      resultsPerQuality: 10,
-      maxResults: 30,
+      resultsPerQuality: 30,
+      maxResults: 100,
       minCachedResults: 10,
       exclusion: [],
       cacheUrl: 'https://stremio-jackett-cacher.elfhosted.com/',
       cache: true,
-      zilean: false, //true,
-      yggflix: false, //true,
-      sharewood: false, //true,
+      zilean: true,
+      yggflix: true,
+      sharewood: true,
       yggtorrentCtg: options.catalogs?.includes('yggtorrent') ?? false,
       yggflixCtg: options.catalogs?.includes('yggflix') ?? false,
       torrenting:

@@ -23,17 +23,15 @@ class NuvioStreamsStreamParser extends StreamParser {
 
     stream.description = stream.description || stream.title;
 
-    parsedStream.type = this.getStreamType(
-      stream,
-      parsedStream.service,
-      parsedStream
-    );
+    parsedStream.type = 'http';
 
     parsedStream.parsedFile = FileParser.parse(
       `${stream.name}\n${stream.description}`
     );
     parsedStream.filename = stream.description?.split('\n')[0];
     parsedStream.folderName = undefined;
+
+    parsedStream.size = this.getSize(stream, parsedStream);
 
     parsedStream.message = stream.name
       ?.replace(/\d+p?/gi, '')
@@ -44,16 +42,6 @@ class NuvioStreamsStreamParser extends StreamParser {
     if (stream.description?.split('\n')?.[-1]?.includes('⚠️')) {
       parsedStream.message += `\n${stream.description?.split('\n')?.[-1]}`;
     }
-
-    parsedStream.torrent = {
-      infoHash:
-        parsedStream.type === 'p2p'
-          ? (stream.infoHash ?? undefined)
-          : this.getInfoHash(stream, parsedStream),
-      seeders: this.getSeeders(stream, parsedStream),
-      sources: stream.sources ?? undefined,
-      fileIdx: stream.fileIdx ?? undefined,
-    };
 
     return parsedStream;
   }
@@ -118,18 +106,6 @@ export class NuvioStreamsPreset extends Preset {
         label: 'Showbox',
       },
       {
-        value: 'xprime',
-        label: 'XPrime',
-      },
-      {
-        value: 'hollymoviehd',
-        label: 'HollyMovieHD',
-      },
-      {
-        value: 'cuevana',
-        label: 'Cuevana',
-      },
-      {
         value: 'soapertv',
         label: 'Soapertv',
       },
@@ -138,12 +114,28 @@ export class NuvioStreamsPreset extends Preset {
         label: 'Vidzee',
       },
       {
-        value: 'hianime',
-        label: 'HiAnime',
-      },
-      {
         value: 'vidsrc',
         label: 'Vidsrc',
+      },
+      {
+        value: 'mp4hydra',
+        label: 'MP4Hydra',
+      },
+      {
+        value: 'uhdmovies',
+        label: 'UHDMovies - 4K',
+      },
+      {
+        value: 'moviesmod',
+        label: 'MoviesMod',
+      },
+      {
+        value: 'dramadrip',
+        label: 'DramaDrip - Asian Dramas',
+      },
+      {
+        value: 'topmovies',
+        label: 'TopMovies - Bollywood/Indian',
       },
     ];
 
@@ -158,7 +150,7 @@ export class NuvioStreamsPreset extends Preset {
         name: 'Scraper API Key',
         description:
           'Optionally provide a [ScraperAPI](https://www.scraperapi.com/) API Key from',
-        type: 'string',
+        type: 'password',
         required: false,
         default: '',
       },
@@ -167,7 +159,7 @@ export class NuvioStreamsPreset extends Preset {
         name: 'ShowBox Cookie',
         description:
           'The cookie for the ShowBox provider. Highly recommended to get streams greater than 9GB. Log in at [Febbox](https://www.febbox.com/) > DevTools > Storage > Cookied > Copy the value of the `ui` cookie. ',
-        type: 'string',
+        type: 'password',
         required: false,
         default: '',
       },

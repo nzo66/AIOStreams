@@ -43,9 +43,15 @@ export class StremioTransformer {
   }
 
   async transformStreams(
-    response: AIOStreamsResponse<ParsedStream[]>
+    response: AIOStreamsResponse<{
+      streams: ParsedStream[];
+      statistics: { title: string; description: string }[];
+    }>
   ): Promise<AIOStreamResponse> {
-    const { data: streams, errors } = response;
+    const {
+      data: { streams, statistics },
+      errors,
+    } = response;
 
     let transformedStreams: AIOStream[] = [];
 
@@ -81,16 +87,27 @@ export class StremioTransformer {
             }
           : formatter.format(stream);
         const identifyingAttributes = [
+          Env.ADDON_ID,
+          stream.addon.name,
+          stream.service?.id,
+          stream.library,
+          stream.proxied,
           stream.parsedFile?.resolution,
           stream.parsedFile?.quality,
           stream.parsedFile?.encode,
-          stream.parsedFile?.audioTags,
-          stream.parsedFile?.visualTags,
-          stream.parsedFile?.languages,
+          stream.parsedFile?.audioTags.length
+            ? stream.parsedFile?.audioTags
+            : undefined,
+          stream.parsedFile?.visualTags.length
+            ? stream.parsedFile?.visualTags
+            : undefined,
+          stream.parsedFile?.languages.length
+            ? stream.parsedFile?.languages
+            : undefined,
           stream.parsedFile?.releaseGroup,
           stream.indexer,
         ].filter(Boolean);
-        const bingeGroup = `${stream.proxied ? 'proxied.' : ''}${identifyingAttributes.join('|')}`;
+        const bingeGroup = `${identifyingAttributes.join('|')}`;
         return {
           name,
           description,
@@ -137,6 +154,7 @@ export class StremioTransformer {
             message: stream.message,
             regexMatched: stream.regexMatched,
             keywordMatched: stream.keywordMatched,
+            id: stream.id,
           },
         };
       })
@@ -151,6 +169,19 @@ export class StremioTransformer {
             errorDescription: error.description,
           })
         )
+      );
+    }
+
+    if (this.userData.showStatistics) {
+      transformedStreams.push(
+        ...statistics.map((statistic) => ({
+          name: statistic.title,
+          description: statistic.description,
+          externalUrl: 'https://github.com/Viren070/AIOStreams',
+          streamData: {
+            type: constants.STATISTIC_STREAM_TYPE,
+          },
+        }))
       );
     }
 
@@ -257,6 +288,7 @@ export class StremioTransformer {
           title: errorTitle,
           description: errorDescription,
         },
+        id: `error.${errorTitle}`,
       },
     };
   }

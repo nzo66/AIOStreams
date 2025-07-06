@@ -96,6 +96,10 @@ export class StreamingCatalogsPreset extends Preset {
       label: 'Netflix',
       value: 'nfx',
     },
+    {
+      label: 'Discovery+',
+      value: 'dpe',
+    },
   ];
   static override get METADATA() {
     const supportedResources = [constants.CATALOG_RESOURCE];

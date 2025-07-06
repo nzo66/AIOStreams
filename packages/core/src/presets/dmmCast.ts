@@ -68,7 +68,7 @@ export class DMMCastPreset extends Preset {
         name: 'Installation URL',
         description:
           'Provide the Unique Installation URL for your DMM Cast addon, available [here](https://debridmediamanager.com/stremio)',
-        type: 'url',
+        type: 'password',
         required: true,
       },
       {

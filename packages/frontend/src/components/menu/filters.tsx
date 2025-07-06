@@ -280,9 +280,9 @@ function Content() {
                 <MdTextFields className="text-lg mr-3" />
                 Keyword
               </TabsTrigger>
-              <TabsTrigger value="condition">
+              <TabsTrigger value="stream-expression">
                 <TbFilterCode className="text-lg mr-3" />
-                Condition
+                Stream Expression
               </TabsTrigger>
               {status?.settings.regexFilterAccess !== 'none' && (
                 <TabsTrigger value="regex">
@@ -1329,37 +1329,43 @@ function Content() {
               </div>
             </PageWrapper>
           </TabsContent>
-          <TabsContent value="condition" className="space-y-4">
+          <TabsContent value="stream-expression" className="space-y-4">
             <PageWrapper>
-              <HeadingWithPageControls heading="Condition" />
+              <HeadingWithPageControls heading="Stream Expression" />
               <div className="mb-4">
                 <p className="text-sm text-[--muted]">
-                  Create advanced filters to exclude specific streams from your
-                  results using condition expressions. Write conditions that
-                  evaluate which streams to remove based on properties like
-                  addon type, quality, size, or any other stream attributes.
-                  Multiple conditions can be combined using logical operators
-                  for precise filtering control.
+                  Create advanced filters to exclude, prefer or require specific
+                  streams from your results using stream expressions. Write
+                  expressions that evaluate which streams to select based on
+                  properties like addon type, quality, size, or any other stream
+                  attributes. Multiple expressions can be combined using logical
+                  operators for precise filtering control. You can also use
+                  ternary operators to apply conditional logic to the streams.
                 </p>
               </div>
               <div className="space-y-4">
                 <SettingsCard title="Help">
                   <div className="space-y-3">
                     <p className="text-sm text-[--muted]">
-                      This filter uses the same expression syntax as the Group
-                      Condition Parser, but operates on a single{' '}
+                      This filter uses AIOStreams'{' '}
+                      <a
+                        href="https://github.com/Viren070/AIOStreams/wiki/Stream-Expression-Language"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[--brand] hover:underline"
+                      >
+                        stream expression language
+                      </a>
+                      , the same syntax used in the Groups system. The
+                      difference here is that you only have the{' '}
                       <code>streams</code> constant containing all available
-                      streams.
+                      streams
                     </p>
                     <div className="text-sm text-[--muted]">
                       <p className="font-medium mb-2">How it works:</p>
                       <ul className="list-disc list-inside space-y-1 ml-2">
                         <li>
-                          Your condition should return an array of streams
-                        </li>
-                        <li>
-                          Streams returned by the condition will be{' '}
-                          <strong>excluded</strong> from results
+                          Your expression should return an array of streams
                         </li>
                         <li>
                           Use functions like <code>addon()</code>,{' '}
@@ -1367,13 +1373,14 @@ function Content() {
                           streams
                         </li>
                         <li>
-                          Combine conditions together by nesting functions
-                          together, for example:
-                          <code>
-                            addon(type(streams, 'debrid'), 'TorBox')
-                          </code>{' '}
-                          excludes all TorBox debrid streams and keeps its
-                          usenet streams.
+                          Combine multiple attributes together using nested
+                          functions
+                        </li>
+                        <li>
+                          Apply conditional logic using ternary operators
+                          <code>expression ? arrayIfTrue : arrayIfFalse</code>
+                          where the two arrays can be replaced with true or
+                          false for all streams and no streams respectively.
                         </li>
                       </ul>
                     </div>
@@ -1385,38 +1392,122 @@ function Content() {
                     <p className="text-sm text-[--muted]">
                       For detailed syntax and available functions, see the{' '}
                       <a
-                        href="https://github.com/Viren070/AIOStreams/wiki/Groups"
+                        href="https://github.com/Viren070/AIOStreams/wiki/Stream-Expression-Language#complete-function-reference"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[--brand] hover:underline"
                       >
-                        Wiki page on Groups
+                        Full function reference
                       </a>
                     </p>
                   </div>
                 </SettingsCard>
                 <TextInputs
-                  label="Excluded Filter Conditions"
-                  itemName="Condition"
-                  help="The conditions to apply to the streams. Streams selected by any of these conditions will be excluded from the results."
+                  label="Required Stream Expressions"
+                  itemName="Expression"
+                  help="The expressions to apply to the streams. Streams selected by any of these expressions will be required to be in the results."
                   placeholder="addon(type(streams, 'debrid'), 'TorBox')"
-                  values={userData.excludedFilterConditions || []}
+                  values={userData.requiredStreamExpressions || []}
                   onValuesChange={(values) => {
                     setUserData((prev) => ({
                       ...prev,
-                      excludedFilterConditions: values,
+                      requiredStreamExpressions: values,
                     }));
                   }}
                   onValueChange={(value, index) => {
                     setUserData((prev) => ({
                       ...prev,
-                      excludedFilterConditions: [
-                        ...(prev.excludedFilterConditions || []).slice(
+                      requiredStreamExpressions: [
+                        ...(prev.requiredStreamExpressions || []).slice(
                           0,
                           index
                         ),
                         value,
-                        ...(prev.excludedFilterConditions || []).slice(
+                        ...(prev.requiredStreamExpressions || []).slice(
+                          index + 1
+                        ),
+                      ],
+                    }));
+                  }}
+                />
+                <TextInputs
+                  label="Excluded Stream Expressions"
+                  itemName="Expression"
+                  help="The expressions to apply to the streams. Streams selected by any of these expressions will be excluded from the results."
+                  placeholder="addon(type(streams, 'debrid'), 'TorBox')"
+                  values={userData.excludedStreamExpressions || []}
+                  onValuesChange={(values) => {
+                    setUserData((prev) => ({
+                      ...prev,
+                      excludedStreamExpressions: values,
+                    }));
+                  }}
+                  onValueChange={(value, index) => {
+                    setUserData((prev) => ({
+                      ...prev,
+                      excludedStreamExpressions: [
+                        ...(prev.excludedStreamExpressions || []).slice(
+                          0,
+                          index
+                        ),
+                        value,
+                        ...(prev.excludedStreamExpressions || []).slice(
+                          index + 1
+                        ),
+                      ],
+                    }));
+                  }}
+                />
+                <TextInputs
+                  label="Included Stream Expressions"
+                  itemName="Expression"
+                  help="The expressions to apply to the streams. Streams selected by any of these expressions will be included in the results."
+                  placeholder="addon(type(streams, 'debrid'), 'TorBox')"
+                  values={userData.includedStreamExpressions || []}
+                  onValuesChange={(values) => {
+                    setUserData((prev) => ({
+                      ...prev,
+                      includedStreamExpressions: values,
+                    }));
+                  }}
+                  onValueChange={(value, index) => {
+                    setUserData((prev) => ({
+                      ...prev,
+                      includedStreamExpressions: [
+                        ...(prev.includedStreamExpressions || []).slice(
+                          0,
+                          index
+                        ),
+                        value,
+                        ...(prev.includedStreamExpressions || []).slice(
+                          index + 1
+                        ),
+                      ],
+                    }));
+                  }}
+                />
+                <TextInputs
+                  label="Preferred Stream Expressions"
+                  itemName="Expression"
+                  help="The expressions to apply to the streams. Streams selected by these expressions will be preferred over other streams and ranked by the order they are in this list."
+                  placeholder="addon(type(streams, 'debrid'), 'TorBox')"
+                  values={userData.preferredStreamExpressions || []}
+                  onValuesChange={(values) => {
+                    setUserData((prev) => ({
+                      ...prev,
+                      preferredStreamExpressions: values,
+                    }));
+                  }}
+                  onValueChange={(value, index) => {
+                    setUserData((prev) => ({
+                      ...prev,
+                      preferredStreamExpressions: [
+                        ...(prev.preferredStreamExpressions || []).slice(
+                          0,
+                          index
+                        ),
+                        value,
+                        ...(prev.preferredStreamExpressions || []).slice(
                           index + 1
                         ),
                       ],
@@ -1962,21 +2053,24 @@ function Content() {
                       <span className="font-medium">Single Result</span>
                       <p className="text-sm text-[--muted] mt-1">
                         Keeps only one result from your highest priority service
-                        and highest priority addon
+                        and highest priority addon. If it is a P2P or uncached
+                        result, it prioritises the number of seeders over addon
+                        priority.
                       </p>
                     </div>
                     <div>
                       <span className="font-medium">Per Service</span>
                       <p className="text-sm text-[--muted] mt-1">
-                        Keeps only one result from your highest priority addon
-                        for each service
+                        This keeps one result per service, and choses each
+                        result using the same criteria above.
                       </p>
                     </div>
                     <div>
                       <span className="font-medium">Per Addon</span>
                       <p className="text-sm text-[--muted] mt-1">
-                        Keeps only one result from your highest priority service
-                        for each addon
+                        This keeps one result per addon, and choses each result
+                        from your highest priority service, and for P2P/uncached
+                        results it looks at the number of seeders.
                       </p>
                     </div>
                   </div>

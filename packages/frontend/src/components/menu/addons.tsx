@@ -39,8 +39,16 @@ import {
   LuChevronsUp,
   LuChevronsDown,
   LuShuffle,
+  LuSettings,
+  LuExternalLink,
+  LuCircleCheck,
 } from 'react-icons/lu';
-import { TbSmartHome, TbSmartHomeOff } from 'react-icons/tb';
+import {
+  TbSearch,
+  TbSearchOff,
+  TbSmartHome,
+  TbSmartHomeOff,
+} from 'react-icons/tb';
 import { AnimatePresence } from 'framer-motion';
 import { PageControls } from '../shared/page-controls';
 import Image from 'next/image';
@@ -64,6 +72,7 @@ import { FaArrowRightLong, FaRankingStar, FaShuffle } from 'react-icons/fa6';
 import { PiStarFill, PiStarBold } from 'react-icons/pi';
 import { IoExtensionPuzzle } from 'react-icons/io5';
 import { NumberInput } from '../ui/number-input';
+import { useDisclosure } from '@/hooks/disclosure';
 
 interface CatalogModification {
   id: string;
@@ -76,7 +85,9 @@ interface CatalogModification {
   rpdb?: boolean;
   onlyOnDiscover?: boolean;
   hideable?: boolean;
+  searchable?: boolean;
   addonName?: string;
+  disableSearch?: boolean;
 }
 
 export function AddonsMenu() {
@@ -86,6 +97,8 @@ export function AddonsMenu() {
     </PageWrapper>
   );
 }
+
+const manifestCache = new Map<string, any>();
 
 function Content() {
   const { status } = useStatus();
@@ -529,6 +542,13 @@ function SortableAddonItem({
   onRemove: () => void;
   onToggleEnabled: (v: boolean) => void;
 }) {
+  const { userData, setUserData } = useUserData();
+  const [isConfigurable, setIsConfigurable] = useState(false);
+  const [step, setStep] = useState(1);
+  // const [configModalOpen, setConfigModalOpen] = useState(false);
+  const configModalOpen = useDisclosure(false);
+  const [newManifestUrl, setNewManifestUrl] = useState('');
+  const [loading, setLoading] = useState(false);
   const {
     attributes,
     listeners,
@@ -544,6 +564,99 @@ function SortableAddonItem({
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+
+  useEffect(() => {
+    if (configModalOpen.isOpen) {
+      setStep(1);
+    }
+  }, [configModalOpen.isOpen]);
+
+  useEffect(() => {
+    let active = true;
+
+    if (presetMetadata.ID === 'custom' && preset.options.manifestUrl) {
+      const manifestUrl = preset.options.manifestUrl.replace(
+        /^stremio:\/\//,
+        'https://'
+      );
+      const cached = manifestCache.get(manifestUrl);
+      if (cached) {
+        setIsConfigurable(cached.behaviorHints?.configurable === true);
+        return; // Don't fetch again
+      }
+
+      fetch(manifestUrl)
+        .then((r) => r.json())
+        .then((manifest) => {
+          manifestCache.set(manifestUrl, manifest);
+          if (active) {
+            setIsConfigurable(manifest?.behaviorHints?.configurable === true);
+          }
+        })
+        .catch(() => {
+          if (active) setIsConfigurable(false);
+        });
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [presetMetadata.ID, preset.options.manifestUrl]);
+
+  const handleManifestUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newManifestUrl) {
+      toast.error('Please enter a new manifest URL');
+      return;
+    }
+
+    const regex = /^(https?|stremio):\/\/.+\/manifest\.json$/;
+    if (!regex.test(newManifestUrl)) {
+      toast.error('Please enter a valid manifest URL');
+      return;
+    }
+
+    // attempt to fetch the manifest
+    try {
+      setLoading(true);
+      const response = await fetch(newManifestUrl);
+      if (!response.ok) {
+        throw new Error(`${response.status} ${response.statusText}`);
+      }
+      await response.json();
+    } catch (error: any) {
+      toast.error(`Failed to fetch or parse manifest: ${error.message}`);
+      return;
+    }
+
+    setUserData((prev) => ({
+      ...prev,
+      presets: prev.presets.map((p) =>
+        p.instanceId === preset.instanceId
+          ? {
+              ...p,
+              options: {
+                ...p.options,
+                manifestUrl: newManifestUrl,
+              },
+            }
+          : p
+      ),
+    }));
+
+    setNewManifestUrl('');
+    configModalOpen.close();
+    toast.success('Manifest URL updated successfully');
+    setLoading(false);
+  };
+
+  const getConfigureUrl = () => {
+    if (!preset.options.manifestUrl) return '';
+    return preset.options.manifestUrl
+      .replace(/^stremio:\/\//, 'https://')
+      .replace(/\/manifest\.json$/, '/configure');
+  };
+
   return (
     <li ref={setNodeRef} style={style}>
       <div className="px-2.5 py-2 bg-[var(--background)] rounded-[--radius-md] border flex gap-2 sm:gap-3 relative">
@@ -577,6 +690,14 @@ function SortableAddonItem({
             onValueChange={onToggleEnabled}
             size="sm"
           />
+          {isConfigurable && presetMetadata.ID === 'custom' && (
+            <IconButton
+              className="rounded-full h-8 w-8 md:h-10 md:w-10"
+              icon={<LuSettings />}
+              intent="primary-subtle"
+              onClick={() => configModalOpen.open()}
+            />
+          )}
           <IconButton
             className="rounded-full h-8 w-8 md:h-10 md:w-10"
             icon={<BiEdit />}
@@ -591,6 +712,81 @@ function SortableAddonItem({
           />
         </div>
       </div>
+
+      <Modal
+        open={configModalOpen.isOpen}
+        onOpenChange={configModalOpen.toggle}
+        // title={`Reconfigure ${preset.options.name}`}
+        title={
+          <>
+            <span className="mr-1.5">Reconfigure</span>
+            <span className="font-semibold truncate overflow-hidden text-ellipsis">
+              {preset.options.name}
+            </span>
+          </>
+        }
+        titleClass="truncate max-w-sm" // Add padding-right to avoid close button and truncate
+      >
+        {step === 1 && (
+          <div className="text-center space-y-4">
+            <div className="mx-auto bg-[--subtle] rounded-full h-12 w-12 flex items-center justify-center">
+              <LuExternalLink className="h-6 w-6 text-[--brand]" />
+            </div>
+            <h3 className="text-lg font-semibold">Reconfigure in a new tab</h3>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              You'll be taken to a new tab to adjust your settings. Once
+              finished, you will be given a new manifest URL to paste back here.
+            </p>
+            <Button
+              className="w-full"
+              onClick={() => {
+                window.open(getConfigureUrl(), '_blank');
+                setStep(2); // Move to the next step
+              }}
+            >
+              <span className="truncate">Take me to configuration</span>
+            </Button>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-4 max-w-md">
+            <div className="text-center">
+              <div className="mx-auto bg-[--subtle] rounded-full h-12 w-12 flex items-center justify-center">
+                <LuCircleCheck className="h-6 w-6 text-[--brand]" />
+              </div>
+              <h3 className="text-lg font-semibold">Awaiting New URL</h3>
+              <p className="text-sm text-[var(--muted-foreground)]">
+                After adjusting your settings, copy the manifest URL and paste
+                it below.
+              </p>
+            </div>
+            <form onSubmit={handleManifestUpdate} className="space-y-4 pt-2">
+              <TextInput
+                type="url"
+                label="New Manifest URL"
+                placeholder="Paste your new URL here"
+                value={newManifestUrl}
+                onValueChange={setNewManifestUrl}
+                required
+                autoFocus // Focus the input since it's the next logical action
+              />
+              <div className="flex gap-2">
+                <Button intent="primary-subtle" onClick={() => setStep(1)}>
+                  Back
+                </Button>
+                <Button
+                  loading={loading}
+                  type="submit"
+                  className="max-w-sm w-full text-ellipsis whitespace-nowrap overflow-hidden text-left"
+                >
+                  Update {preset.options.name}
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
+      </Modal>
     </li>
   );
 }
@@ -775,6 +971,19 @@ function AddonModal({
           }
           if (opt.constraints.max && val > opt.constraints.max) {
             toast.error(`${opt.name} must be at most ${opt.constraints.max}`);
+            return false;
+          }
+        } else if (opt.type === 'multi-select') {
+          if (opt.constraints.max && val.length > opt.constraints.max) {
+            toast.error(
+              `${opt.name} must be at most ${opt.constraints.max} items`
+            );
+            return false;
+          }
+          if (opt.constraints.min && val.length < opt.constraints.min) {
+            toast.error(
+              `${opt.name} must be at least ${opt.constraints.min} items`
+            );
             return false;
           }
         }
@@ -991,7 +1200,7 @@ function AddonGroupCard() {
         Optionally assign your addons to groups. Streams are only fetched from
         your first group initially, and only if a certain condition is met, will
         streams be fetched from the next group, and so on. Leaving this blank
-        will mean streams are fetched from all addons. You can also check the{' '}
+        will mean streams are fetched from all addons. Check the{' '}
         <a
           href="https://github.com/Viren070/AIOStreams/wiki/Groups"
           target="_blank"
@@ -999,7 +1208,7 @@ function AddonGroupCard() {
           className="text-[--brand] hover:text-[--brand]/80 hover:underline"
         >
           wiki
-        </a>
+        </a>{' '}
         for a detailed guide to using groups.
       </div>
       {(userData.groups || []).map((group, index) => (
@@ -1096,6 +1305,7 @@ function CatalogSettingsCard() {
                 addonName: nMod.addonName,
                 type: nMod.type,
                 hideable: nMod.hideable,
+                searchable: nMod.searchable,
               };
             }
             return eMod;
@@ -1112,6 +1322,7 @@ function CatalogSettingsCard() {
                 shuffle: false,
                 rpdb: userData.rpdbApiKey ? true : false,
                 hideable: catalog.hideable,
+                searchable: catalog.searchable,
                 addonName: catalog.addonName,
               });
             }
@@ -1132,7 +1343,7 @@ function CatalogSettingsCard() {
         });
         toast.success('Catalogs fetched successfully');
       } else {
-        toast.error(response.error || 'Failed to fetch catalogs');
+        toast.error(response.error?.message || 'Failed to fetch catalogs');
       }
     } catch (error) {
       toast.error('Failed to fetch catalogs');
@@ -1375,6 +1586,10 @@ function SortableCatalogItem({
   const dynamicIconSize = `text-xl h-8 w-8 lg:text-2xl lg:h-10 lg:w-10`;
 
   const handleNameAndTypeEdit = () => {
+    if (!newType) {
+      toast.error('Type cannot be empty');
+      return;
+    }
     setUserData((prev) => ({
       ...prev,
       catalogModifications: prev.catalogModifications?.map((c) =>
@@ -1406,7 +1621,8 @@ function SortableCatalogItem({
           <div className="mb-4 md:mb-6 md:pr-40">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="text-sm md:text-base font-medium line-clamp-1 truncate text-ellipsis">
-                {catalog.addonName} - {catalog.name ?? catalog.id}
+                {catalog.name ?? catalog.id} -{' '}
+                {capitalise(catalog.overrideType ?? catalog.type)}
               </h3>
               <IconButton
                 className="rounded-full h-5 w-5 md:h-6 md:w-6 flex-shrink-0"
@@ -1415,11 +1631,8 @@ function SortableCatalogItem({
                 onClick={() => setModalOpen(true)}
               />
             </div>
-            <p className="text-xs md:text-sm text-[var(--muted-foreground)] capitalize mb-2 md:mb-0">
-              {catalog.overrideType !== undefined &&
-              catalog.overrideType !== catalog.type
-                ? `${catalog.overrideType} (${catalog.type})`
-                : catalog.type}
+            <p className="text-xs md:text-sm text-[var(--muted-foreground)] mb-2 md:mb-0">
+              {catalog.addonName}
             </p>
 
             {/* Mobile Controls Row - only visible on small screens */}
@@ -1580,6 +1793,43 @@ function SortableCatalogItem({
                         Discover Only
                       </Tooltip>
                     )}
+
+                    {catalog.searchable && (
+                      <Tooltip
+                        trigger={
+                          <IconButton
+                            className={dynamicIconSize}
+                            icon={
+                              catalog.disableSearch ? (
+                                <TbSearchOff />
+                              ) : (
+                                <TbSearch />
+                              )
+                            }
+                            intent="primary-subtle"
+                            rounded
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setUserData((prev) => ({
+                                ...prev,
+                                catalogModifications:
+                                  prev.catalogModifications?.map((c) =>
+                                    c.id === catalog.id &&
+                                    c.type === catalog.type
+                                      ? {
+                                          ...c,
+                                          disableSearch: !c.disableSearch,
+                                        }
+                                      : c
+                                  ),
+                              }));
+                            }}
+                          />
+                        }
+                      >
+                        Searchable
+                      </Tooltip>
+                    )}
                   </div>
                 </div>
               </AccordionTrigger>
@@ -1675,6 +1925,26 @@ function SortableCatalogItem({
                         }}
                       />
                     )}
+
+                    {catalog.searchable && (
+                      <Switch
+                        label="Disable Search"
+                        help="Disable the search for this catalog"
+                        side="right"
+                        value={catalog.disableSearch ?? false}
+                        onValueChange={(disableSearch) => {
+                          setUserData((prev) => ({
+                            ...prev,
+                            catalogModifications:
+                              prev.catalogModifications?.map((c) =>
+                                c.id === catalog.id && c.type === catalog.type
+                                  ? { ...c, disableSearch }
+                                  : c
+                              ),
+                          }));
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
               </AccordionContent>
@@ -1708,8 +1978,6 @@ function SortableCatalogItem({
             placeholder="Enter catalog type"
             value={newType}
             onValueChange={setNewType}
-            required
-            help="Override the type of the catalog. This can break the catalog and its behaviour."
           />
 
           <Button className="w-full" type="submit">

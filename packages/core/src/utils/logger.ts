@@ -29,6 +29,13 @@ const moduleMap: { [key: string]: string } = {
   http: '🌐  HTTP',
   proxy: '🚀 PROXY',
   stremio: '🎥 STREMIO',
+  deduplicator: '🎯  DEDUPLICATOR',
+  limiter: '⚖️  LIMITER',
+  filterer: '🗑️  FILTERER',
+  precomputer: '🧮  PRECOMPUTER',
+  sorter: '📊  SORTER',
+  proxifier: '🔀  PROXIFIER',
+  fetcher: '🔎  SCRAPER',
 };
 
 // Define colors for each log level using full names
