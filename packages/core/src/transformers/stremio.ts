@@ -116,6 +116,7 @@ export class StremioTransformer {
             : undefined,
           infoHash:
             stream.type === 'p2p' ? stream.torrent?.infoHash : undefined,
+          fileIdx: stream.type === 'p2p' ? stream.torrent?.fileIdx : undefined,
           ytId: stream.type === 'youtube' ? stream.ytId : undefined,
           externalUrl:
             stream.type === 'external' ? stream.externalUrl : undefined,
