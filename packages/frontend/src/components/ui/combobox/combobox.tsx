@@ -163,7 +163,7 @@ export const Combobox = React.forwardRef<HTMLButtonElement, ComboboxProps>(
         removeItemButtonClass,
         /**/
         commandProps,
-        options,
+        options: rawOptions,
         emptyMessage,
         placeholder,
         value: controlledValue,
@@ -220,6 +220,25 @@ export const Combobox = React.forwardRef<HTMLButtonElement, ComboboxProps>(
     React.useEffect(() => {
       onValueChange?.(value);
     }, [value]);
+
+    const counts: Record<string, number> = {};
+    const options = rawOptions.map((option) => {
+      const textValue = (option.textValue || option.value)?.trim() || 'Unnamed';
+      const label =
+        typeof option.label === 'string'
+          ? option.label?.trim() || 'Unnamed'
+          : option.label;
+      counts[textValue] = (counts[textValue] || 0) + 1;
+      return {
+        ...option,
+        label:
+          counts[textValue] > 1 ? `${label} (${counts[textValue]})` : label,
+        textValue:
+          counts[textValue] > 1
+            ? `${textValue} (${counts[textValue]})`
+            : textValue,
+      };
+    });
 
     const selectedOptions = options.filter((option) =>
       value.includes(option.value)

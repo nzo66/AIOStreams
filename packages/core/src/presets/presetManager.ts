@@ -40,6 +40,10 @@ import { ArgentinaTVPreset } from './argentinaTv';
 import { OpenSubtitlesV3PlusPreset } from './opensubtitles-v3-plus';
 import { SubSourcePreset } from './subsource';
 import { SubDLPreset } from './subdl';
+import { AISearchPreset } from './aiSearch';
+import { FKStreamPreset } from './fkstream';
+import { AIOSubtitlePreset } from './aiosubtitle';
+import { SubHeroPreset } from './subhero';
 
 const PRESET_LIST: string[] = [
   'custom',
@@ -53,6 +57,7 @@ const PRESET_LIST: string[] = [
   'orion',
   'torrents-db',
   'streamfusion',
+  'fkstream',
   'debridio',
   'torbox',
   'easynews',
@@ -65,6 +70,7 @@ const PRESET_LIST: string[] = [
   'argentina-tv',
   'debridio-tv',
   'debridio-watchtower',
+  'ai-search',
   'tmdb-addon',
   'debridio-tmdb',
   'debridio-tvdb',
@@ -82,6 +88,8 @@ const PRESET_LIST: string[] = [
   'opensubtitles-v3-plus',
   'subsource',
   'subdl',
+  'subhero',
+  'aiosubtitle',
   'aiostreams',
 ];
 
@@ -150,6 +158,8 @@ export class PresetManager {
         return OrionPreset;
       case 'streamfusion':
         return StreamFusionPreset;
+      case 'fkstream':
+        return FKStreamPreset;
       case 'anime-kitsu':
         return AnimeKitsuPreset;
       case 'nuvio-streams':
@@ -186,6 +196,12 @@ export class PresetManager {
         return SubSourcePreset;
       case 'subdl':
         return SubDLPreset;
+      case 'ai-search':
+        return AISearchPreset;
+      case 'aiosubtitle':
+        return AIOSubtitlePreset;
+      case 'subhero':
+        return SubHeroPreset;
       default:
         throw new Error(`Preset ${id} not found`);
     }

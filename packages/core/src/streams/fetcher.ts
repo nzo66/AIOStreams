@@ -46,9 +46,6 @@ class StreamFetcher {
     }[] = [];
     let allStreams: ParsedStream[] = [];
     const start = Date.now();
-    let totalTimeTaken = 0;
-    let previousGroupStreams: ParsedStream[] = [];
-    let previousGroupTimeTaken = 0;
 
     // Helper function to fetch streams from an addon and log summary
     const fetchFromAddon = async (addon: Addon) => {
@@ -149,7 +146,9 @@ class StreamFetcher {
       await this.precompute.precompute(filteredStreams);
 
       const groupTime = Date.now() - groupStart;
-      logger.info(`Filtered to ${filteredStreams.length} streams`);
+      logger.info(
+        `Group processing finished. Filtered to ${filteredStreams.length} streams in ${groupTime}ms`
+      );
       return {
         totalTime: groupTime,
         streams: filteredStreams,
@@ -158,32 +157,59 @@ class StreamFetcher {
 
     // If groups are configured, handle group-based fetching
     if (this.userData.groups && this.userData.groups.length > 0) {
-      // Always fetch from first group
-      const firstGroupAddons = addons.filter(
-        (addon) =>
-          addon.presetInstanceId &&
-          this.userData.groups![0].addons.includes(addon.presetInstanceId)
-      );
+      const groupPromises = this.userData.groups.map((group) => {
+        const groupAddons = addons.filter(
+          (addon) =>
+            addon.presetInstanceId &&
+            group.addons.includes(addon.presetInstanceId)
+        );
+        logger.info(
+          `Queueing fetch for group with ${groupAddons.length} addons.`
+        );
+        return fetchFromGroup(groupAddons);
+      });
 
-      logger.info(
-        `Fetching streams from first group with ${firstGroupAddons.length} addons`
-      );
+      let totalTimeTaken = 0;
+      let previousGroupStreams: ParsedStream[] = [];
+      let previousGroupTimeTaken = 0;
 
-      // Fetch streams from first group
-      const firstGroupResult = await fetchFromGroup(firstGroupAddons);
-      allStreams.push(...firstGroupResult.streams);
-      totalTimeTaken = firstGroupResult.totalTime;
-      previousGroupStreams = firstGroupResult.streams;
-      previousGroupTimeTaken = firstGroupResult.totalTime;
-
-      // For each subsequent group, evaluate condition and fetch if true
-      for (let i = 1; i < this.userData.groups.length; i++) {
+      for (let i = 0; i < groupPromises.length; i++) {
+        const groupResult = await groupPromises[i];
         const group = this.userData.groups[i];
 
-        // Skip if no condition or addons
-        if (!group.condition || !group.addons.length) continue;
+        if (i === 0) {
+          allStreams.push(...groupResult.streams);
+          totalTimeTaken = groupResult.totalTime;
+          previousGroupStreams = groupResult.streams;
+          previousGroupTimeTaken = groupResult.totalTime;
 
-        try {
+          // After the first group, check the condition for the second group
+          if (groupPromises.length > 1) {
+            const nextGroup = this.userData.groups[1];
+            if (!nextGroup.condition || !nextGroup.addons.length) continue;
+
+            const evaluator = new GroupConditionEvaluator(
+              previousGroupStreams,
+              allStreams,
+              previousGroupTimeTaken,
+              totalTimeTaken,
+              type
+            );
+            const shouldFetchNext = await evaluator.evaluate(
+              nextGroup.condition
+            );
+
+            if (!shouldFetchNext) {
+              logger.info(
+                `Condition not met for group 2 based on group 1 results. Halting further processing.`
+              );
+              break; // Exit the loop, returning only group 1 streams
+            }
+          }
+        } else {
+          // For groups other than the first, check their condition before processing
+          if (!group.condition || !group.addons.length) continue;
+
           const evaluator = new GroupConditionEvaluator(
             previousGroupStreams,
             allStreams,
@@ -192,37 +218,27 @@ class StreamFetcher {
             type
           );
           const shouldFetch = await evaluator.evaluate(group.condition);
+
           if (shouldFetch) {
-            logger.info(`Condition met for group ${i + 1}, fetching streams`);
-
-            const groupAddons = addons.filter(
-              (addon) =>
-                addon.presetInstanceId &&
-                group.addons.includes(addon.presetInstanceId)
+            logger.info(
+              `Condition met for group ${i + 1}, processing streams.`
             );
-
-            const groupResult = await fetchFromGroup(groupAddons);
             allStreams.push(...groupResult.streams);
             totalTimeTaken += groupResult.totalTime;
             previousGroupStreams = groupResult.streams;
             previousGroupTimeTaken = groupResult.totalTime;
           } else {
             logger.info(
-              `Condition not met for group ${i + 1}, skipping remaining groups`
+              `Condition not met for group ${i + 1}, skipping remaining groups.`
             );
-            // if we meet a group whose condition is not met, we do not need to fetch from any subsequent groups
-            break;
+            break; // Stop processing any more groups
           }
-        } catch (error) {
-          logger.error(`Error evaluating condition for group ${i}:`, error);
-          continue;
         }
       }
     } else {
       // If no groups configured, fetch from all addons in parallel
       const result = await fetchFromGroup(addons);
       allStreams.push(...result.streams);
-      totalTimeTaken = result.totalTime;
     }
 
     logger.info(

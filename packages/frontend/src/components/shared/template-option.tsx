@@ -115,7 +115,13 @@ const TemplateOption: React.FC<TemplateOptionProps> = ({
               onChange(value)
             }
             required={required}
-            step={constraints?.max ? constraints?.max / 100 : 1}
+            step={
+              constraints?.max
+                ? Math.floor(constraints?.max / 100) > 0
+                  ? Math.floor(constraints?.max / 100)
+                  : 1
+                : 1
+            }
             disabled={isDisabled}
           />
           {description && (

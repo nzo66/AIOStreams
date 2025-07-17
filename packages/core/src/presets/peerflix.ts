@@ -9,7 +9,7 @@ export class PeerflixPreset extends Preset {
     const supportedServices: ServiceId[] = [
       constants.REALDEBRID_SERVICE,
       constants.PREMIUMIZE_SERVICE,
-      constants.ALLEDEBRID_SERVICE,
+      constants.ALLDEBRID_SERVICE,
       constants.TORBOX_SERVICE,
       constants.PUTIO_SERVICE,
       constants.DEBRIDLINK_SERVICE,

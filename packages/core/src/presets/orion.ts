@@ -24,7 +24,7 @@ export class OrionPreset extends Preset {
     const supportedServices: ServiceId[] = [
       constants.REALDEBRID_SERVICE,
       constants.PREMIUMIZE_SERVICE,
-      constants.ALLEDEBRID_SERVICE,
+      constants.ALLDEBRID_SERVICE,
       // constants.TORBOX_SERVICE,
       constants.DEBRIDLINK_SERVICE,
       constants.OFFCLOUD_SERVICE,

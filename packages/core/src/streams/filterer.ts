@@ -61,8 +61,8 @@ class StreamFilterer {
       requiredRegex: { total: 0, details: {} },
       excludedKeywords: { total: 0, details: {} },
       requiredKeywords: { total: 0, details: {} },
-      requiredSeeders: { total: 0, details: {} },
-      excludedSeeders: { total: 0, details: {} },
+      requiredSeederRange: { total: 0, details: {} },
+      excludedSeederRange: { total: 0, details: {} },
       excludedFilterCondition: { total: 0, details: {} },
       requiredFilterCondition: { total: 0, details: {} },
       size: { total: 0, details: {} },
@@ -912,6 +912,13 @@ class StreamFilterer {
           requiredSeederRange[0] &&
           (stream.torrent?.seeders ?? 0) < requiredSeederRange[0]
         ) {
+          skipReasons.requiredSeederRange.total++;
+          skipReasons.requiredSeederRange.details[
+            `Less than ${requiredSeederRange[0]}`
+          ] =
+            (skipReasons.requiredSeederRange.details[
+              `Less than ${requiredSeederRange[0]}`
+            ] || 0) + 1;
           return false;
         }
         if (
@@ -919,6 +926,13 @@ class StreamFilterer {
           requiredSeederRange[1] &&
           (stream.torrent?.seeders ?? 0) > requiredSeederRange[1]
         ) {
+          skipReasons.requiredSeederRange.total++;
+          skipReasons.requiredSeederRange.details[
+            `Greater than ${requiredSeederRange[1]}`
+          ] =
+            (skipReasons.requiredSeederRange.details[
+              `Greater than ${requiredSeederRange[1]}`
+            ] || 0) + 1;
           return false;
         }
       }
@@ -933,12 +947,26 @@ class StreamFilterer {
           excludedSeederRange[0] &&
           (stream.torrent?.seeders ?? 0) > excludedSeederRange[0]
         ) {
+          skipReasons.excludedSeederRange.total++;
+          skipReasons.excludedSeederRange.details[
+            `Less than ${excludedSeederRange[0]}`
+          ] =
+            (skipReasons.excludedSeederRange.details[
+              `Less than ${excludedSeederRange[0]}`
+            ] || 0) + 1;
           return false;
         }
         if (
           excludedSeederRange[1] &&
           (stream.torrent?.seeders ?? 0) < excludedSeederRange[1]
         ) {
+          skipReasons.excludedSeederRange.total++;
+          skipReasons.excludedSeederRange.details[
+            `Greater than ${excludedSeederRange[1]}`
+          ] =
+            (skipReasons.excludedSeederRange.details[
+              `Greater than ${excludedSeederRange[1]}`
+            ] || 0) + 1;
           return false;
         }
       }

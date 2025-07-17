@@ -30,6 +30,15 @@ router.get(
         userData: req.userData,
       });
 
+      if (id.startsWith('aiostreamserror.')) {
+        res.status(200).json({
+          meta: StremioTransformer.createErrorMeta(
+            JSON.parse(decodeURIComponent(id.split('.')[1]))
+          ),
+        });
+        return;
+      }
+
       const aiostreams = new AIOStreams(req.userData);
       await aiostreams.initialise();
 

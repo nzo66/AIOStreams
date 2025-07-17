@@ -152,7 +152,7 @@ export class Cache<K, V> {
       if (updateTTL) {
         item.lastAccessed = now;
       }
-      return item.value;
+      return structuredClone(item.value);
     }
     return undefined;
   }
@@ -167,7 +167,10 @@ export class Cache<K, V> {
     if (this.cache.size >= this.maxSize) {
       this.evict();
     }
-    this.cache.set(key, new CacheItem<V>(value, Date.now(), ttl * 1000));
+    this.cache.set(
+      key,
+      new CacheItem<V>(structuredClone(value), Date.now(), ttl * 1000)
+    );
   }
 
   /**

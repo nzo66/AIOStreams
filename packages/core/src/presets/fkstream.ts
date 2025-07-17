@@ -1,72 +1,53 @@
-import { Addon, Option, UserData, Resource } from '../db';
-import { baseOptions, Preset } from './preset';
-import { Env } from '../utils';
-import { constants, ServiceId } from '../utils';
-import { StreamParser } from '../parser';
+// stremio://new-who.onrender.com/manifest.json
 
-class CometStreamParser extends StreamParser {
-  override applyUrlModifications(url: string | undefined): string | undefined {
-    if (!url) {
-      return url;
-    }
-    if (
-      Env.FORCE_COMET_HOSTNAME !== undefined ||
-      Env.FORCE_COMET_PORT !== undefined ||
-      Env.FORCE_COMET_PROTOCOL !== undefined
-    ) {
-      // modify the URL according to settings, needed when using a local URL for requests but a public stream URL is needed.
-      const urlObj = new URL(url);
+import { Addon, Option, ParsedStream, Stream, UserData } from '../db';
+import { Preset, baseOptions } from './preset';
+import { constants, Env, ServiceId } from '../utils';
 
-      if (Env.FORCE_COMET_PROTOCOL !== undefined) {
-        urlObj.protocol = Env.FORCE_COMET_PROTOCOL;
-      }
-      if (Env.FORCE_COMET_PORT !== undefined) {
-        urlObj.port = Env.FORCE_COMET_PORT.toString();
-      }
-      if (Env.FORCE_COMET_HOSTNAME !== undefined) {
-        urlObj.hostname = Env.FORCE_COMET_HOSTNAME;
-      }
-      return urlObj.toString();
-    }
-    return url;
-  }
-}
-
-export class CometPreset extends Preset {
-  static override getParser(): typeof StreamParser {
-    return CometStreamParser;
-  }
-
+export class FKStreamPreset extends Preset {
   static override get METADATA() {
+    const supportedResources = [
+      constants.CATALOG_RESOURCE,
+      constants.META_RESOURCE,
+      constants.STREAM_RESOURCE,
+    ];
     const supportedServices: ServiceId[] = [
-      constants.REALDEBRID_SERVICE,
-      constants.PREMIUMIZE_SERVICE,
-      constants.ALLDEBRID_SERVICE,
       constants.TORBOX_SERVICE,
       constants.EASYDEBRID_SERVICE,
+      constants.REALDEBRID_SERVICE,
       constants.DEBRIDLINK_SERVICE,
+      constants.ALLDEBRID_SERVICE,
+      constants.PREMIUMIZE_SERVICE,
       constants.OFFCLOUD_SERVICE,
       constants.PIKPAK_SERVICE,
     ];
 
-    const supportedResources = [constants.STREAM_RESOURCE];
-
     const options: Option[] = [
-      ...baseOptions('Comet', supportedResources, Env.DEFAULT_COMET_TIMEOUT),
+      ...baseOptions(
+        'FKStream',
+        supportedResources,
+        Env.DEFAULT_FKSTREAM_TIMEOUT
+      ),
+      {
+        id: 'defaultSort',
+        name: 'Default Sort',
+        description: 'Default sort for the catalogs',
+        type: 'select',
+        options: [
+          { label: 'Last Updated ▼', value: 'last_update' },
+          { label: 'Rating ▼', value: 'rating_value' },
+          { label: 'Title ▲', value: 'title' },
+          { label: 'Year ▼', value: 'year' },
+        ],
+        default: 'last_update',
+      },
       {
         id: 'includeP2P',
         name: 'Include P2P',
-        description: 'Include P2P results, even if a debrid service is enabled',
+        description:
+          'Include P2P streams in the addon even when using a debrid service',
         type: 'boolean',
         default: false,
-      },
-      {
-        id: 'removeTrash',
-        name: 'Remove Trash',
-        description:
-          'Remove all trash from results (Adult Content, CAM, Clean Audio, PDTV, R5, Screener, Size, Telecine and Telesync)',
-        type: 'boolean',
-        default: true,
       },
       {
         id: 'services',
@@ -87,28 +68,20 @@ export class CometPreset extends Preset {
         name: '',
         description: '',
         type: 'socials',
-        socials: [
-          {
-            id: 'github',
-            url: 'https://github.com/g0ldyy/comet',
-          },
-          {
-            id: 'ko-fi',
-            url: 'https://ko-fi.com/g0ldyy',
-          },
-        ],
+        socials: [{ id: 'website', url: 'https://linktr.ee/FanKai' }],
       },
     ];
 
     return {
-      ID: 'comet',
-      NAME: 'Comet',
-      LOGO: 'https://i.imgur.com/jmVoVMu.jpeg',
-      URL: Env.COMET_URL,
-      TIMEOUT: Env.DEFAULT_COMET_TIMEOUT || Env.DEFAULT_TIMEOUT,
-      USER_AGENT: Env.DEFAULT_COMET_USER_AGENT || Env.DEFAULT_USER_AGENT,
+      ID: 'fkstream',
+      NAME: 'FKStream',
+      LOGO: 'https://raw.githubusercontent.com/Dydhzo/fkstream/refs/heads/main/fkstream/assets/fkstream-logo.jpg',
+      URL: Env.FKSTREAM_URL,
+      TIMEOUT: Env.DEFAULT_FKSTREAM_TIMEOUT || Env.DEFAULT_TIMEOUT,
+      USER_AGENT: Env.DEFAULT_FKSTREAM_USER_AGENT || Env.DEFAULT_USER_AGENT,
       SUPPORTED_SERVICES: supportedServices,
-      DESCRIPTION: "Stremio's fastest Torrent/Debrid addon",
+      DESCRIPTION:
+        'An unofficial addon for Fankai - French focused anime content. Bleach, One Piece, Dragon Ball, Naruto et une soixantaine de Kai. Viens voir !',
       OPTIONS: options,
       SUPPORTED_STREAM_TYPES: [
         constants.P2P_STREAM_TYPE,
@@ -122,8 +95,6 @@ export class CometPreset extends Preset {
     userData: UserData,
     options: Record<string, any>
   ): Promise<Addon[]> {
-    // url can either be something like https://torrentio.com/ or it can be a custom manifest url.
-    // if it is a custom manifest url, return a single addon with the custom manifest url.
     if (options?.url?.endsWith('/manifest.json')) {
       return [this.generateAddon(userData, options, undefined)];
     }
@@ -180,11 +151,7 @@ export class CometPreset extends Preset {
     }
     url = url.replace(/\/$/, '');
     const configString = this.base64EncodeJSON({
-      maxResultsPerResolution: 0,
-      maxSize: 0,
-      cachedOnly: false,
-      removeTrash: options.removeTrash ?? true,
-      resultFormat: ['all'],
+      streamFilter: 'all',
       debridService: serviceId || 'torrent',
       debridApiKey: serviceId
         ? this.getServiceCredential(serviceId, userData, {
@@ -195,13 +162,8 @@ export class CometPreset extends Preset {
           })
         : '',
       debridStreamProxyPassword: '',
-      languages: { required: [], exclude: [], preferred: [] },
-      resolutions: {},
-      options: {
-        remove_ranks_under: -10000000000,
-        allow_english_in_languages: false,
-        remove_unknown_languages: false,
-      },
+      maxActorsDisplay: 'all',
+      defaultSort: options.defaultSort || 'rating_value',
     });
 
     return `${url}${configString ? '/' + configString : ''}/manifest.json`;

@@ -174,16 +174,20 @@ export class StremioTransformer {
     }
 
     if (this.userData.showStatistics) {
-      transformedStreams.push(
-        ...statistics.map((statistic) => ({
-          name: statistic.title,
-          description: statistic.description,
-          externalUrl: 'https://github.com/Viren070/AIOStreams',
-          streamData: {
-            type: constants.STATISTIC_STREAM_TYPE,
-          },
-        }))
-      );
+      let position = this.userData.statisticsPosition || 'bottom';
+      let statisticStreams = statistics.map((statistic) => ({
+        name: statistic.title,
+        description: statistic.description,
+        externalUrl: 'https://github.com/Viren070/AIOStreams',
+        streamData: {
+          type: constants.STATISTIC_STREAM_TYPE,
+        },
+      }));
+      if (position === 'bottom') {
+        transformedStreams.push(...statisticStreams);
+      } else {
+        transformedStreams.unshift(...statisticStreams);
+      }
     }
 
     return {
@@ -313,7 +317,7 @@ export class StremioTransformer {
       errorDescription = 'Unknown error',
     } = options;
     return {
-      id: `error.${errorTitle}`,
+      id: `aiostreamserror.${encodeURIComponent(JSON.stringify(options))}`,
       name: errorTitle,
       description: errorDescription,
       type: 'movie',

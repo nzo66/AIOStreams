@@ -399,7 +399,7 @@ function CustomizeModal({
   };
 
   const handleLogoChange = (value: string) => {
-    setLogo(value);
+    setLogo(value.trim() || undefined);
   };
 
   return (

@@ -34,6 +34,7 @@ import { useMenu } from '@/context/menu';
 import { PageControls } from '../shared/page-controls';
 import { SettingsCard } from '../shared/settings-card';
 import { TextInput } from '../ui/text-input';
+import { PasswordInput } from '../ui/password-input';
 
 export function ServicesMenu() {
   return (
@@ -298,9 +299,8 @@ function Content() {
         title="RPDB"
         description="Provide your RPDB API key if you want catalogs of supported types to use posters from RPDB"
       >
-        <TextInput
+        <PasswordInput
           label="RPDB API Key"
-          // help="Get your API Key from "
           help={
             <span>
               Get your API Key from{' '}
@@ -323,6 +323,45 @@ function Content() {
           }}
         />
       </SettingsCard>
+
+      <SettingsCard
+        title="TMDB"
+        description={`Provide your TMDB Read Access Token to use some features of AIOStreams. This instance ${
+          status?.settings.tmdbApiAvailable ? 'has' : 'does not have'
+        } a default TMDB Access token set so you ${
+          status?.settings.tmdbApiAvailable ? 'do not have to' : 'have to'
+        } set one here. It is used for title matching and recommended for precaching to be able to determine when to move to the next season.`}
+      >
+        <PasswordInput
+          label="TMDB Read Access Token"
+          help={
+            <>
+              <p>
+                You can get it from your{' '}
+                <a
+                  href="https://www.themoviedb.org/settings/api"
+                  target="_blank"
+                  className="text-[--brand] hover:underline"
+                  rel="noopener noreferrer"
+                >
+                  TMDB Account Settings
+                </a>
+              </p>
+              <p></p>
+            </>
+          }
+          required={!status?.settings.tmdbApiAvailable}
+          value={userData.tmdbAccessToken}
+          placeholder="Enter your TMDB access token"
+          onValueChange={(value) => {
+            setUserData((prev) => ({
+              ...prev,
+              tmdbAccessToken: value,
+            }));
+          }}
+        />
+      </SettingsCard>
+
       <ServiceModal
         open={modalOpen}
         onOpenChange={setModalOpen}

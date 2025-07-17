@@ -61,7 +61,7 @@ export class StreamingCatalogsPreset extends Preset {
       value: 'hst',
     },
     {
-      label: 'Cruncyroll',
+      label: 'Crunchyroll',
       value: 'cru',
     },
     {

@@ -113,12 +113,11 @@ export class Wrapper {
           `Fetching manifest for ${this.addon.name} ${this.addon.displayIdentifier || this.addon.identifier} (${makeUrlLogSafe(this.manifestUrl)})`
         );
         try {
-          const res = await makeRequest(
-            this.manifestUrl,
-            Env.MANIFEST_TIMEOUT,
-            this.addon.headers,
-            this.addon.ip
-          );
+          const res = await makeRequest(this.manifestUrl, {
+            timeout: Env.MANIFEST_TIMEOUT,
+            headers: this.addon.headers,
+            forwardIp: this.addon.ip,
+          });
           if (!res.ok) {
             throw new Error(`${res.status} - ${res.statusText}`);
           }
@@ -252,7 +251,11 @@ export class Wrapper {
   }
 
   async makeRequest(url: string, timeout: number = this.addon.timeout) {
-    return await makeRequest(url, timeout, this.addon.headers, this.addon.ip);
+    return await makeRequest(url, {
+      timeout: timeout,
+      headers: this.addon.headers,
+      forwardIp: this.addon.ip,
+    });
   }
 
   private async makeResourceRequest<T>(
@@ -278,12 +281,11 @@ export class Wrapper {
       `Fetching ${resource} of type ${type} with id ${id} and extras ${extras} (${makeUrlLogSafe(url)})`
     );
     try {
-      const res = await makeRequest(
-        url,
-        timeout,
-        this.addon.headers,
-        this.addon.ip
-      );
+      const res = await makeRequest(url, {
+        timeout: timeout,
+        headers: this.addon.headers,
+        forwardIp: this.addon.ip,
+      });
       if (!res.ok) {
         logger.error(
           `Failed to fetch ${resource} resource for ${this.getAddonName(this.addon)}: ${res.status} - ${res.statusText}`

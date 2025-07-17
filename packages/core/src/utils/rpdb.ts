@@ -31,10 +31,10 @@ export class RPDB {
 
     const response = await makeRequest(
       `https://api.ratingposterdb.com/${this.apiKey}/isValid`,
-      5000,
-      undefined,
-      undefined,
-      true
+      {
+        timeout: 5000,
+        ignoreRecursion: true,
+      }
     );
     if (!response.ok) {
       throw new Error(

@@ -6,6 +6,7 @@ import { useUserData } from '@/context/userData';
 import { SettingsCard } from '../shared/settings-card';
 import { Combobox } from '../ui/combobox';
 import { RESOURCES } from '../../../../core/src/utils/constants';
+import { Select } from '../ui/select';
 
 export function MiscellaneousMenu() {
   return (
@@ -90,6 +91,22 @@ function Content() {
               setUserData((prev) => ({
                 ...prev,
                 showStatistics: value,
+              }));
+            }}
+          />
+          <Select
+            label="Statistics Position"
+            help="Whether to show the statistic streams at the top or bottom of the stream list."
+            disabled={!userData.showStatistics}
+            options={[
+              { label: 'Top', value: 'top' },
+              { label: 'Bottom', value: 'bottom' },
+            ]}
+            value={userData.statisticsPosition || 'bottom'}
+            onValueChange={(value) => {
+              setUserData((prev) => ({
+                ...prev,
+                statisticsPosition: value as 'top' | 'bottom',
               }));
             }}
           />

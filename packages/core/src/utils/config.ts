@@ -53,7 +53,7 @@ function getServiceCredentialDefault(
           return Env.DEFAULT_REALDEBRID_API_KEY;
       }
       break;
-    case constants.ALLEDEBRID_SERVICE:
+    case constants.ALLDEBRID_SERVICE:
       switch (credentialId) {
         case 'apiKey':
           return Env.DEFAULT_ALLDEBRID_API_KEY;
@@ -140,7 +140,7 @@ function getServiceCredentialForced(
           return Env.FORCED_REALDEBRID_API_KEY;
       }
       break;
-    case constants.ALLEDEBRID_SERVICE:
+    case constants.ALLDEBRID_SERVICE:
       switch (credentialId) {
         case 'apiKey':
           return Env.FORCED_ALLDEBRID_API_KEY;
@@ -614,7 +614,7 @@ function validateOption(
     }
   }
 
-  if (option.type === 'string') {
+  if (option.type === 'string' || option.type === 'password') {
     if (typeof value !== 'string') {
       throw new Error(
         `Option ${option.id} must be a string, got ${typeof value}`
@@ -633,12 +633,6 @@ function validateOption(
   }
 
   if (option.type === 'password') {
-    if (typeof value !== 'string') {
-      throw new Error(
-        `Option ${option.id} must be a string, got ${typeof value}`
-      );
-    }
-
     if (option.forced) {
       // option.forced is already encrypted
       value = option.forced;

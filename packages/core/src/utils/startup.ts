@@ -1155,6 +1155,58 @@ const logStartupInfo = () => {
     }
   });
 
+  // AI Search
+  logKeyValue('AI Search:', Env.AI_SEARCH_URL);
+  if (Env.DEFAULT_AI_SEARCH_TIMEOUT) {
+    logKeyValue(
+      '  Timeout:',
+      formatMilliseconds(Env.DEFAULT_AI_SEARCH_TIMEOUT),
+      '     '
+    );
+  }
+  if (Env.DEFAULT_AI_SEARCH_USER_AGENT) {
+    logKeyValue('  User Agent:', Env.DEFAULT_AI_SEARCH_USER_AGENT, '     ');
+  }
+
+  // FKStream
+  logKeyValue('FKStream:', Env.FKSTREAM_URL);
+  if (Env.DEFAULT_FKSTREAM_TIMEOUT) {
+    logKeyValue(
+      '  Timeout:',
+      formatMilliseconds(Env.DEFAULT_FKSTREAM_TIMEOUT),
+      '     '
+    );
+  }
+  if (Env.DEFAULT_FKSTREAM_USER_AGENT) {
+    logKeyValue('  User Agent:', Env.DEFAULT_FKSTREAM_USER_AGENT, '     ');
+  }
+
+  // AIO Subtitles
+  logKeyValue('AIO Subtitles:', Env.AIOSUBTITLE_URL);
+  if (Env.DEFAULT_AIOSUBTITLE_TIMEOUT) {
+    logKeyValue(
+      '  Timeout:',
+      formatMilliseconds(Env.DEFAULT_AIOSUBTITLE_TIMEOUT),
+      '     '
+    );
+  }
+  if (Env.DEFAULT_AIOSUBTITLE_USER_AGENT) {
+    logKeyValue('  User Agent:', Env.DEFAULT_AIOSUBTITLE_USER_AGENT, '     ');
+  }
+
+  // Subhero
+  logKeyValue('Subhero:', Env.SUBHERO_URL);
+  if (Env.DEFAULT_SUBHERO_TIMEOUT) {
+    logKeyValue(
+      '  Timeout:',
+      formatMilliseconds(Env.DEFAULT_SUBHERO_TIMEOUT),
+      '     '
+    );
+  }
+  if (Env.DEFAULT_SUBHERO_USER_AGENT) {
+    logKeyValue('  User Agent:', Env.DEFAULT_SUBHERO_USER_AGENT, '     ');
+  }
+
   // Additional Features
   const features: string[] = [];
   if (Env.TMDB_ACCESS_TOKEN) features.push('TMDB Integration');

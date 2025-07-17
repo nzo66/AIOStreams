@@ -565,6 +565,10 @@ function SortableAddonItem({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const standardiseManifestUrl = (url: string) => {
+    return url.replace(/^stremio:\/\//, 'https://').replace(/\/$/, '');
+  };
+
   useEffect(() => {
     if (configModalOpen.isOpen) {
       setStep(1);
@@ -575,10 +579,7 @@ function SortableAddonItem({
     let active = true;
 
     if (presetMetadata.ID === 'custom' && preset.options.manifestUrl) {
-      const manifestUrl = preset.options.manifestUrl.replace(
-        /^stremio:\/\//,
-        'https://'
-      );
+      const manifestUrl = standardiseManifestUrl(preset.options.manifestUrl);
       const cached = manifestCache.get(manifestUrl);
       if (cached) {
         setIsConfigurable(cached.behaviorHints?.configurable === true);
@@ -605,13 +606,14 @@ function SortableAddonItem({
 
   const handleManifestUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const standardisedManifest = standardiseManifestUrl(newManifestUrl);
     if (!newManifestUrl) {
       toast.error('Please enter a new manifest URL');
       return;
     }
 
     const regex = /^(https?|stremio):\/\/.+\/manifest\.json$/;
-    if (!regex.test(newManifestUrl)) {
+    if (!regex.test(standardisedManifest)) {
       toast.error('Please enter a valid manifest URL');
       return;
     }
@@ -619,13 +621,14 @@ function SortableAddonItem({
     // attempt to fetch the manifest
     try {
       setLoading(true);
-      const response = await fetch(newManifestUrl);
+      const response = await fetch(standardisedManifest);
       if (!response.ok) {
         throw new Error(`${response.status} ${response.statusText}`);
       }
       await response.json();
     } catch (error: any) {
       toast.error(`Failed to fetch or parse manifest: ${error.message}`);
+      setLoading(false);
       return;
     }
 
@@ -637,7 +640,7 @@ function SortableAddonItem({
               ...p,
               options: {
                 ...p.options,
-                manifestUrl: newManifestUrl,
+                manifestUrl: standardisedManifest,
               },
             }
           : p
@@ -652,9 +655,10 @@ function SortableAddonItem({
 
   const getConfigureUrl = () => {
     if (!preset.options.manifestUrl) return '';
-    return preset.options.manifestUrl
-      .replace(/^stremio:\/\//, 'https://')
-      .replace(/\/manifest\.json$/, '/configure');
+    return standardiseManifestUrl(preset.options.manifestUrl).replace(
+      /\/manifest\.json$/,
+      '/configure'
+    );
   };
 
   return (
@@ -667,8 +671,8 @@ function SortableAddonItem({
         />
         <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
           <div className="relative flex-shrink-0 h-8 w-8 hidden sm:block">
-            {presetMetadata.ID === 'custom' ? (
-              <PlusIcon className="w-full h-full object-contain" />
+            {presetMetadata.ID === 'custom' || !presetMetadata.LOGO ? (
+              <IoExtensionPuzzle className="w-full h-full object-contain" />
             ) : (
               <Image
                 src={presetMetadata.LOGO}

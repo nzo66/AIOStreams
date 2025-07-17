@@ -16,7 +16,7 @@ export class DebridioPreset extends Preset {
   static override get METADATA() {
     const supportedServices: ServiceId[] = [
       constants.REALDEBRID_SERVICE,
-      constants.ALLEDEBRID_SERVICE,
+      constants.ALLDEBRID_SERVICE,
       constants.DEBRIDLINK_SERVICE,
       constants.PREMIUMIZE_SERVICE,
       constants.TORBOX_SERVICE,
