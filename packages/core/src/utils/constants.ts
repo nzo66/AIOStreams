@@ -2,9 +2,8 @@ import { Option } from '../db';
 
 export enum ErrorCode {
   // User API
-  USER_NOT_FOUND = 'USER_NOT_FOUND',
   USER_ALREADY_EXISTS = 'USER_ALREADY_EXISTS',
-  USER_INVALID_PASSWORD = 'USER_INVALID_PASSWORD',
+  USER_INVALID_DETAILS = 'USER_INVALID_DETAILS',
   USER_INVALID_CONFIG = 'USER_INVALID_CONFIG',
   USER_ERROR = 'USER_ERROR',
   USER_NEW_PASSWORD_TOO_SHORT = 'USER_NEW_PASSWORD_TOO_SHORT',
@@ -18,6 +17,7 @@ export enum ErrorCode {
   INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR',
   METHOD_NOT_ALLOWED = 'METHOD_NOT_ALLOWED',
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+  BAD_REQUEST = 'BAD_REQUEST',
 }
 
 interface ErrorDetails {
@@ -30,17 +30,13 @@ export const ErrorMap: Record<ErrorCode, ErrorDetails> = {
     statusCode: 400,
     message: 'Required fields are missing',
   },
-  [ErrorCode.USER_NOT_FOUND]: {
-    statusCode: 404,
-    message: 'User not found',
-  },
   [ErrorCode.USER_ALREADY_EXISTS]: {
     statusCode: 409,
     message: 'User already exists',
   },
-  [ErrorCode.USER_INVALID_PASSWORD]: {
-    statusCode: 401,
-    message: 'Invalid password',
+  [ErrorCode.USER_INVALID_DETAILS]: {
+    statusCode: 400,
+    message: 'Invalid UUID or password',
   },
   [ErrorCode.USER_INVALID_CONFIG]: {
     statusCode: 400,
@@ -82,6 +78,10 @@ export const ErrorMap: Record<ErrorCode, ErrorDetails> = {
     statusCode: 500,
     message: 'An error occurred while formatting the stream',
   },
+  [ErrorCode.BAD_REQUEST]: {
+    statusCode: 400,
+    message: 'Bad request',
+  },
 };
 
 export class APIError extends Error {
@@ -103,6 +103,8 @@ const HEADERS_FOR_IP_FORWARDING = [
   'X-Forwarded',
   'Forwarded-For',
 ];
+
+export const INTERNAL_SECRET_HEADER = 'X-AIOStreams-Internal-Secret';
 
 const API_VERSION = 1;
 
@@ -461,7 +463,7 @@ const SERVICE_DETAILS: Record<
       "Don't have an account? [Sign up here](https://www.seedr.cc/?r=6542079)",
     credentials: [
       {
-        id: 'apiKey',
+        id: 'encodedToken',
         name: 'Encoded Token',
         description:
           'Please authorise at MediaFusion and copy the token into here.',

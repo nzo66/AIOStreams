@@ -7,6 +7,7 @@ import { SettingsCard } from '../shared/settings-card';
 import { Combobox } from '../ui/combobox';
 import { RESOURCES } from '../../../../core/src/utils/constants';
 import { Select } from '../ui/select';
+import { Alert } from '../ui/alert';
 
 export function MiscellaneousMenu() {
   return (
@@ -80,7 +81,7 @@ function Content() {
           />
         </SettingsCard>
         <SettingsCard
-          title="Show Statistics"
+          title="Statistic Streams"
           description="AIOStreams will return the statistics of stream fetches and response times for each addon if enabled."
         >
           <Switch

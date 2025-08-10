@@ -322,6 +322,33 @@ function Content() {
             }));
           }}
         />
+
+        <Switch
+          label="Use Redirect API"
+          side="right"
+          disabled={!userData.rpdbApiKey || !status.settings.baseUrl}
+          help={
+            <span>
+              If enabled, poster URLs will first contact AIOStreams and then be
+              redirected to RPDB. This allows fallback posters to be used if the
+              RPDB API is down or does not have a poster for that item. It can
+              however cause a minimal slowdown due to having to contact
+              AIOStreams first. This setting requires the <code>BASE_URL</code>{' '}
+              environment variable to be set.
+            </span>
+          }
+          value={
+            userData.rpdbUseRedirectApi !== undefined
+              ? userData.rpdbUseRedirectApi
+              : !!status.settings.baseUrl
+          }
+          onValueChange={(v) => {
+            setUserData((prev) => ({
+              ...prev,
+              rpdbUseRedirectApi: v,
+            }));
+          }}
+        />
       </SettingsCard>
 
       <SettingsCard

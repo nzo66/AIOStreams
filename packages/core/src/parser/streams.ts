@@ -11,6 +11,10 @@ class StreamParser {
         pattern: /invalid\s+\w+\s+(account|apikey|token)/i,
         message: 'Invalid account or apikey or token',
       },
+      {
+        pattern: /public\s+rate[-\s]?limit\s+exceeded/i,
+        message: 'Public rate limit exceeded',
+      },
     ];
   }
   protected get filenameRegex(): RegExp | undefined {
@@ -53,10 +57,16 @@ class StreamParser {
   constructor(protected readonly addon: Addon) {}
 
   parse(stream: Stream): ParsedStream | { skip: true } {
+    if (this.shouldSkip(stream)) {
+      return { skip: true };
+    }
+    stream.description = stream.description || stream.title;
+
     let parsedStream: ParsedStream = {
       id: this.getRandomId(),
       addon: this.addon,
       type: 'http',
+      proxied: this.isProxied(stream),
       url: this.applyUrlModifications(stream.url ?? undefined),
       externalUrl: stream.externalUrl ?? undefined,
       ytId: stream.ytId ?? undefined,
@@ -67,8 +77,6 @@ class StreamParser {
       originalName: stream.name ?? undefined,
       originalDescription: (stream.description || stream.title) ?? undefined,
     };
-
-    stream.description = stream.description || stream.title;
 
     this.raiseErrorIfNecessary(stream, parsedStream);
 
@@ -137,6 +145,10 @@ class StreamParser {
     return url;
   }
 
+  protected shouldSkip(stream: Stream): boolean {
+    return false;
+  }
+
   protected raiseErrorIfNecessary(
     stream: Stream,
     currentParsedStream: ParsedStream
@@ -200,7 +212,7 @@ class StreamParser {
     return filename
       ?.trim()
       ?.replace(/^\p{Emoji_Presentation}+/gu, '')
-      ?.replace(/^[^:]+:\s*/g, '');
+      ?.replace(/^[^\s:]+:\s*/, '');
   }
 
   protected getFolder(
@@ -281,6 +293,10 @@ class StreamParser {
     }
 
     return undefined;
+  }
+
+  protected isProxied(stream: Stream): boolean {
+    return false;
   }
 
   protected getIndexer(

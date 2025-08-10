@@ -13,12 +13,12 @@ import {
 } from 'envalid';
 import { ResourceManager } from './resources';
 import * as constants from './constants';
+import { randomBytes } from 'crypto';
 try {
   dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
 } catch (error) {
   console.error('Error loading .env file', error);
 }
-
 let metadata: any = undefined;
 try {
   metadata = ResourceManager.getResource('metadata.json') || {};
@@ -199,9 +199,17 @@ export const Env = cleanEnv(process.env, {
     choices: ['none', 'trusted', 'all'],
   }),
   BASE_URL: url({
-    desc: 'Base URL of the addon e.g. https://aiostreams.com',
-    default: undefined,
-    devDefault: 'http://localhost:3000',
+    desc: 'Base URL of the addon, including protocol, hostname, and optionally port',
+    example: 'https://aiostreams.example.com',
+    devDefault: `http://localhost:${process.env.PORT || 3000}`,
+  }),
+  INTERNAL_URL: url({
+    default: `http://localhost:${process.env.PORT || 3000}`,
+    desc: 'Internal URL of the addon, used for internal communication between built-in addons and the server',
+  }),
+  INTERNAL_SECRET: readonly({
+    default: randomBytes(32).toString('hex'),
+    desc: 'Internal secret for the addon, used for internal communication between built-in addons and the server',
   }),
   ADDON_NAME: str({
     default: 'AIOStreams',
@@ -331,24 +339,48 @@ export const Env = cleanEnv(process.env, {
     default: 300,
     desc: 'Cache TTL for manifest files',
   }),
+  MANIFEST_CACHE_MAX_SIZE: num({
+    default: undefined,
+    desc: 'Max number of manifest items to cache',
+  }),
   SUBTITLE_CACHE_TTL: num({
     default: 300,
     desc: 'Cache TTL for subtitle files',
+  }),
+  SUBTITLE_CACHE_MAX_SIZE: num({
+    default: undefined,
+    desc: 'Max number of subtitle items to cache',
   }),
   STREAM_CACHE_TTL: num({
     default: -1,
     desc: 'Cache TTL for stream files. If -1, no caching will be done.',
   }),
+  STREAM_CACHE_MAX_SIZE: num({
+    default: undefined,
+    desc: 'Max number of stream items to cache',
+  }),
   CATALOG_CACHE_TTL: num({
     default: 300,
     desc: 'Cache TTL for catalog files',
   }),
+  CATALOG_CACHE_MAX_SIZE: num({
+    default: 1000,
+    desc: 'Max number of catalog items to cache',
+  }),
   META_CACHE_TTL: num({
     default: 300,
+  }),
+  META_CACHE_MAX_SIZE: num({
+    default: undefined,
+    desc: 'Max number of metadata items to cache',
   }),
   ADDON_CATALOG_CACHE_TTL: num({
     default: 300,
     desc: 'Cache TTL for addon catalog files',
+  }),
+  ADDON_CATALOG_CACHE_MAX_SIZE: num({
+    default: undefined,
+    desc: 'Max number of addon catalog items to cache',
   }),
   RPDB_API_KEY_VALIDITY_CACHE_TTL: num({
     default: 604800, // 7 days
@@ -378,6 +410,15 @@ export const Env = cleanEnv(process.env, {
   MAX_GROUPS: num({
     default: 20,
     desc: 'Max number of groups',
+  }),
+
+  ALLOWED_REGEX_PATTERNS: json({
+    default: [],
+    desc: 'Allowed regex patterns',
+  }),
+  ALLOWED_REGEX_PATTERNS_DESCRIPTION: str({
+    default: undefined,
+    desc: 'Description of the allowed regex patterns',
   }),
 
   MAX_TIMEOUT: num({
@@ -433,6 +474,10 @@ export const Env = cleanEnv(process.env, {
     default: undefined,
     desc: 'Force proxy url',
   }),
+  FORCE_PROXY_PUBLIC_URL: url({
+    default: undefined,
+    desc: 'Force proxy public url',
+  }),
   FORCE_PROXY_CREDENTIALS: str({
     default: undefined,
     desc: 'Force proxy credentials',
@@ -461,6 +506,10 @@ export const Env = cleanEnv(process.env, {
   DEFAULT_PROXY_URL: url({
     default: undefined,
     desc: 'Default proxy url',
+  }),
+  DEFAULT_PROXY_PUBLIC_URL: url({
+    default: undefined,
+    desc: 'Default proxy public url',
   }),
   DEFAULT_PROXY_CREDENTIALS: str({
     default: undefined,
@@ -734,7 +783,7 @@ export const Env = cleanEnv(process.env, {
 
   // Peerflix settings
   PEERFLIX_URL: url({
-    default: 'https://peerflix-addon.onrender.com',
+    default: 'https://addon.peerflix.mov',
     desc: 'Peerflix URL',
   }),
   DEFAULT_PEERFLIX_TIMEOUT: num({
@@ -1264,6 +1313,83 @@ export const Env = cleanEnv(process.env, {
     desc: 'Default SubHero user agent',
   }),
 
+  STREAMASIA_URL: url({
+    default: 'https://stremio-dramacool-addon.xyz',
+    desc: 'StreamAsia URL',
+  }),
+  DEFAULT_STREAMASIA_TIMEOUT: num({
+    default: undefined,
+    desc: 'Default StreamAsia timeout',
+  }),
+  DEFAULT_STREAMASIA_USER_AGENT: userAgent({
+    default: undefined,
+    desc: 'Default StreamAsia user agent',
+  }),
+
+  MORE_LIKE_THIS_URL: url({
+    default: 'https://bbab4a35b833-more-like-this.baby-beamup.club',
+    desc: 'More Like This URL',
+  }),
+  DEFAULT_MORE_LIKE_THIS_TIMEOUT: num({
+    default: undefined,
+    desc: 'Default More Like This timeout',
+  }),
+  DEFAULT_MORE_LIKE_THIS_USER_AGENT: userAgent({
+    default: undefined,
+    desc: 'Default More Like This user agent',
+  }),
+
+  BUILTIN_STREMTHRU_URL: url({
+    default: 'https://stremthru.13377001.xyz',
+    desc: 'Builtin StremThru URL',
+  }),
+
+  BUILTIN_GDRIVE_CLIENT_ID: str({
+    default: undefined,
+    desc: 'Builtin GDrive client ID',
+  }),
+  BUILTIN_GDRIVE_CLIENT_SECRET: str({
+    default: undefined,
+    desc: 'Builtin GDrive client secret',
+  }),
+  BUILTIN_GDRIVE_TIMEOUT: num({
+    default: undefined,
+    desc: 'Builtin GDrive timeout',
+  }),
+  BUILTIN_GDRIVE_USER_AGENT: userAgent({
+    default: undefined,
+    desc: 'Builtin GDrive user agent',
+  }),
+  BUILTIN_GDRIVE_PAGE_SIZE_LIMIT: num({
+    default: 1000,
+    desc: 'Builtin GDrive page size limit',
+  }),
+
+  BUILTIN_TORBOX_SEARCH_TIMEOUT: num({
+    default: undefined,
+    desc: 'Builtin TorBox Search timeout',
+  }),
+  BUILTIN_TORBOX_SEARCH_USER_AGENT: userAgent({
+    default: undefined,
+    desc: 'Builtin TorBox Search user agent',
+  }),
+  BUILTIN_TORBOX_SEARCH_SEARCH_API_TIMEOUT: num({
+    default: 30000, // 30 seconds
+    desc: 'Builtin TorBox Search search API timeout',
+  }),
+  BUILTIN_TORBOX_SEARCH_SEARCH_API_CACHE_TTL: num({
+    default: 1 * 60 * 60, // 1 hour
+    desc: 'Builtin TorBox Search search API cache TTL',
+  }),
+  BUILTIN_TORBOX_SEARCH_METADATA_CACHE_TTL: num({
+    default: 7 * 24 * 60 * 60, // 7 days
+    desc: 'Builtin TorBox Search metadata cache TTL',
+  }),
+  BUILTIN_TORBOX_SEARCH_INSTANT_AVAILABILITY_CACHE_TTL: num({
+    default: 15 * 60, // 15 minutes
+    desc: 'Builtin TorBox Search instant availability cache TTL',
+  }),
+
   // Rate limiting settings
   DISABLE_RATE_LIMITS: bool({
     default: false,
@@ -1344,6 +1470,14 @@ export const Env = cleanEnv(process.env, {
   }),
   STREMIO_META_RATE_LIMIT_MAX_REQUESTS: num({
     default: 15, // allow 100 requests per IP per minute
+    desc: 'Maximum number of requests allowed per IP within the time window',
+  }),
+  GDRIVE_STREAM_RATE_LIMIT_WINDOW: num({
+    default: 5, // 1 minute
+    desc: 'Time window for Google Drive stream rate limiting in seconds',
+  }),
+  GDRIVE_STREAM_RATE_LIMIT_MAX_REQUESTS: num({
+    default: 10, // allow 100 requests per IP per minute
     desc: 'Maximum number of requests allowed per IP within the time window',
   }),
 });

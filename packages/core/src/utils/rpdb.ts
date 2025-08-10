@@ -10,6 +10,7 @@ interface Id {
 }
 
 const apiKeyValidationCache = Cache.getInstance('rpdbApiKey');
+const posterCheckCache = Cache.getInstance<string, string>('rpdbPosterCheck');
 
 export class RPDB {
   private readonly apiKey: string;
@@ -57,8 +58,17 @@ export class RPDB {
    *
    * @param id - the id of the item to get the poster for, if it is of a supported type, the rpdb poster will be returned, otherwise null
    */
-  public getPosterUrl(type: string, id: string): string | null {
+  public async getPosterUrl(
+    type: string,
+    id: string,
+    checkExists: boolean = true
+  ): Promise<string | null> {
     const parsedId = this.getParsedId(id, type);
+    const cacheKey = `${type}-${id}`;
+    const cached = posterCheckCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
     if (!parsedId) {
       return null;
     }
@@ -67,6 +77,22 @@ export class RPDB {
       return null;
     }
     const posterUrl = `https://api.ratingposterdb.com/${this.apiKey}/${parsedId.type}/poster-default/${parsedId.value}.jpg?fallback=true`;
+    if (!checkExists) {
+      return posterUrl;
+    }
+    try {
+      const response = await makeRequest(posterUrl, {
+        method: 'HEAD',
+        timeout: 3000,
+        ignoreRecursion: true,
+      });
+      if (!response.ok) {
+        return null;
+      }
+    } catch (error) {
+      return null;
+    }
+    posterCheckCache.set(cacheKey, posterUrl, 1 * 60 * 60);
     return posterUrl;
   }
 

@@ -79,6 +79,7 @@ import { toast } from 'sonner';
 import { Slider } from '../ui/slider/slider';
 import { TbFilterCode } from 'react-icons/tb';
 import { PasswordInput } from '../ui/password-input';
+import MarkdownLite from '../shared/markdown-lite';
 
 type Resolution = (typeof RESOLUTIONS)[number];
 type Quality = (typeof QUALITIES)[number];
@@ -138,6 +139,10 @@ const tabsTriggerClass = cn(
 const tabsListClass = cn(
   'w-full flex flex-wrap lg:flex-nowrap h-fit xl:h-10',
   'lg:block'
+);
+
+const tabsContentClass = cn(
+  'space-y-4 animate-in fade-in-0 slide-in-from-right-2 duration-300'
 );
 
 interface SizeFilterOptions {
@@ -221,6 +226,7 @@ function Content() {
         className={tabsRootClass}
         triggerClass={tabsTriggerClass}
         listClass={tabsListClass}
+        contentClass={tabsContentClass}
       >
         <TabsList className="flex-wrap max-w-full lg:space-y-2">
           <SettingsNavCard>
@@ -284,7 +290,8 @@ function Content() {
                 <TbFilterCode className="text-lg mr-3" />
                 Stream Expression
               </TabsTrigger>
-              {status?.settings.regexFilterAccess !== 'none' && (
+              {(status?.settings.regexFilterAccess !== 'none' ||
+                status?.settings.allowedRegexPatterns) && (
                 <TabsTrigger value="regex">
                   <BsRegex className="text-lg mr-3" />
                   Regex
@@ -308,7 +315,7 @@ function Content() {
 
         <div className="space-y-0 relative">
           <TabsContent value="cache" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Cache" />
               <div className="space-y-4">
                 <SettingsCard
@@ -516,11 +523,11 @@ function Content() {
                   </div>
                 </SettingsCard>
               </div>
-            </PageWrapper>
+            </>
           </TabsContent>
 
           <TabsContent value="resolution" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Resolution" />
               <FilterSettings<Resolution>
                 filterName="Resolutions"
@@ -559,10 +566,10 @@ function Content() {
                   value: resolution,
                 }))}
               />
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="quality" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Quality" />
               <FilterSettings<Quality>
                 filterName="Qualities"
@@ -601,10 +608,10 @@ function Content() {
                   value: quality,
                 }))}
               />
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="encode" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Encode" />
               <FilterSettings<Encode>
                 filterName="Encodes"
@@ -643,10 +650,10 @@ function Content() {
                   value: encode,
                 }))}
               />
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="stream-type" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Stream Type" />
               <FilterSettings<StreamType>
                 filterName="Stream Types"
@@ -685,10 +692,10 @@ function Content() {
                   value: streamType,
                 }))}
               />
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="visual-tag" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Visual Tag" />
               <FilterSettings<VisualTag>
                 filterName="Visual Tags"
@@ -727,10 +734,10 @@ function Content() {
                   value: visualTag,
                 }))}
               />
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="audio-tag" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Audio Tag" />
               <FilterSettings<AudioTag>
                 filterName="Audio Tags"
@@ -767,10 +774,10 @@ function Content() {
                   value: audioTag,
                 }))}
               />
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="audio-channel" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Audio Channel" />
               <FilterSettings<AudioChannel>
                 filterName="Audio Channels"
@@ -807,10 +814,10 @@ function Content() {
                   value: audioChannel,
                 }))}
               />
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="language" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Language" />
               <FilterSettings<Language>
                 filterName="Languages"
@@ -850,10 +857,10 @@ function Content() {
                   value: language,
                 }))}
               />
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="seeders" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Seeders" />
               <SettingsCard
                 title="Seeder Filters"
@@ -1109,10 +1116,10 @@ function Content() {
                   </div>
                 </div>
               </SettingsCard>
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="title-matching" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Matching" />
               <div className="space-y-4">
                 <SettingsCard
@@ -1148,6 +1155,24 @@ function Content() {
                         },
                       }));
                     }}
+                  />
+
+                  <NumberInput
+                    label="Year Tolerance"
+                    disabled={!userData.titleMatching?.matchYear}
+                    value={userData.titleMatching?.yearTolerance ?? 1}
+                    onValueChange={(value) => {
+                      setUserData((prev) => ({
+                        ...prev,
+                        titleMatching: {
+                          ...prev.titleMatching,
+                          yearTolerance: value,
+                        },
+                      }));
+                    }}
+                    min={0}
+                    max={100}
+                    help="The number of years to tolerate when matching years. For example, if the year tolerance is 5, then a stream with a year of 2020 will match a request for 2025."
                   />
 
                   <Select
@@ -1296,10 +1321,10 @@ function Content() {
                   </div>
                 </SettingsCard>
               </div>
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="stream-expression" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Stream Expression" />
               <div className="mb-4">
                 <p className="text-sm text-[--muted]">
@@ -1484,10 +1509,10 @@ function Content() {
                   }}
                 />
               </div>
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="keyword" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Keyword" />
               <div className="mb-4">
                 <p className="text-sm text-[--muted]">
@@ -1585,10 +1610,10 @@ function Content() {
                   }}
                 />
               </div>
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="regex" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Regex" />
               <div className="mb-4">
                 <p className="text-sm text-[--muted]">
@@ -1601,15 +1626,35 @@ function Content() {
                 {status?.settings.regexFilterAccess === 'trusted' && (
                   <Alert
                     intent="info"
-                    title="Admin Only"
+                    title="Trusted Users Only"
                     description={
                       <>
                         <p>
                           Regex filters are only available to trusted users due
-                          to the potential for abuse. Ask the owner of the
-                          instance to add your UUID to the{' '}
+                          to the potential for abuse. If you are the owner of
+                          the instance, you can add your UUID to the{' '}
                           <code className="font-mono">TRUSTED_UUIDS</code>{' '}
                           environment variable.
+                        </p>
+                      </>
+                    }
+                  />
+                )}
+                {status?.settings.allowedRegexPatterns && (
+                  <Alert
+                    intent="info"
+                    title="Allowed Regex Patterns"
+                    description={
+                      <>
+                        <p>
+                          This instance has allowed a specific set of regexes to
+                          be used by all users.
+                        </p>
+                        <p>
+                          <MarkdownLite>
+                            {status?.settings.allowedRegexPatterns
+                              .description || ''}
+                          </MarkdownLite>
                         </p>
                       </>
                     }
@@ -1735,10 +1780,10 @@ function Content() {
                   }}
                 />
               </div>
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="size" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Size" />
               <div className="mb-4">
                 <p className="text-sm text-[--muted]">
@@ -1841,10 +1886,10 @@ function Content() {
                   </div>
                 </SettingsCard>
               </div>
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="limit" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Result Limits" />
               <SettingsCard description="Apply limits to specific kinds of results">
                 <div className="space-y-4">
@@ -1962,10 +2007,10 @@ function Content() {
                   />
                 </div>
               </SettingsCard>
-            </PageWrapper>
+            </>
           </TabsContent>
           <TabsContent value="deduplicator" className="space-y-4">
-            <PageWrapper>
+            <>
               <HeadingWithPageControls heading="Deduplicator" />
               <div className="mb-4">
                 <p className="text-sm text-[--muted]">
@@ -2119,7 +2164,7 @@ function Content() {
                   />
                 </SettingsCard>
               </div>
-            </PageWrapper>
+            </>
           </TabsContent>
         </div>
       </Tabs>

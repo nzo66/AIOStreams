@@ -3,6 +3,9 @@ import { Env } from './env';
 
 const logger = createLogger('startup');
 
+// import { logSensitiveInfo } from './logger';
+import { maskSensitiveInfo } from './logger';
+
 const formatDuration = (seconds: number): string => {
   if (seconds < 60) return `${seconds}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
@@ -475,6 +478,74 @@ const logStartupInfo = () => {
       'TMDB Access Token:',
       Env.TMDB_ACCESS_TOKEN ? '✅ Configured' : '❌ None'
     );
+  });
+
+  logSection('BUILT-IN ADDONS', '🔧', () => {
+    const torboxSearchEnabled = Env.BASE_URL;
+    logKeyValue(
+      'Torbox Search:',
+      torboxSearchEnabled ? '✅ Enabled' : '❌ Disabled (Set BASE_URL)'
+    );
+    if (torboxSearchEnabled) {
+      if (Env.BUILTIN_TORBOX_SEARCH_INSTANT_AVAILABILITY_CACHE_TTL)
+        logKeyValue(
+          '    Instant Availability Cache TTL:',
+          formatDuration(
+            Env.BUILTIN_TORBOX_SEARCH_INSTANT_AVAILABILITY_CACHE_TTL
+          )
+        );
+      logKeyValue(
+        '    Metadata Cache TTL:',
+        formatDuration(Env.BUILTIN_TORBOX_SEARCH_METADATA_CACHE_TTL)
+      );
+      logKeyValue(
+        '    Search API Cache TTL:',
+        formatDuration(Env.BUILTIN_TORBOX_SEARCH_SEARCH_API_CACHE_TTL)
+      );
+
+      if (Env.BUILTIN_TORBOX_SEARCH_TIMEOUT) {
+        logKeyValue(
+          '    Timeout:',
+          formatMilliseconds(Env.BUILTIN_TORBOX_SEARCH_TIMEOUT)
+        );
+      }
+      if (Env.BUILTIN_TORBOX_SEARCH_USER_AGENT) {
+        logKeyValue('    User Agent:', Env.BUILTIN_TORBOX_SEARCH_USER_AGENT);
+      }
+    }
+    const gdriveEnabled =
+      Env.BUILTIN_GDRIVE_CLIENT_ID &&
+      Env.BUILTIN_GDRIVE_CLIENT_SECRET &&
+      Env.BASE_URL;
+    logKeyValue(
+      'Gdrive:',
+      gdriveEnabled
+        ? '✅ Enabled'
+        : '❌ Disabled (Set GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET, BASE_URL)'
+    );
+    if (gdriveEnabled) {
+      logKeyValue('    Client ID:', Env.BUILTIN_GDRIVE_CLIENT_ID!, '     ');
+      logKeyValue(
+        '    Client Secret:',
+        maskSensitiveInfo(Env.BUILTIN_GDRIVE_CLIENT_SECRET!),
+        '     '
+      );
+      logKeyValue(
+        '    Page Size Limit:',
+        Env.BUILTIN_GDRIVE_PAGE_SIZE_LIMIT.toString(),
+        '     '
+      );
+      if (Env.BUILTIN_GDRIVE_TIMEOUT) {
+        logKeyValue(
+          '    Timeout:',
+          formatMilliseconds(Env.BUILTIN_GDRIVE_TIMEOUT),
+          '     '
+        );
+      }
+      if (Env.BUILTIN_GDRIVE_USER_AGENT) {
+        logKeyValue('    User Agent:', Env.BUILTIN_GDRIVE_USER_AGENT, '     ');
+      }
+    }
   });
 
   // Addon Sources
@@ -1205,6 +1276,36 @@ const logStartupInfo = () => {
   }
   if (Env.DEFAULT_SUBHERO_USER_AGENT) {
     logKeyValue('  User Agent:', Env.DEFAULT_SUBHERO_USER_AGENT, '     ');
+  }
+
+  // StreamAsia
+  logKeyValue('StreamAsia:', Env.STREAMASIA_URL);
+  if (Env.DEFAULT_STREAMASIA_TIMEOUT) {
+    logKeyValue(
+      '  Timeout:',
+      formatMilliseconds(Env.DEFAULT_STREAMASIA_TIMEOUT),
+      '     '
+    );
+  }
+  if (Env.DEFAULT_STREAMASIA_USER_AGENT) {
+    logKeyValue('  User Agent:', Env.DEFAULT_STREAMASIA_USER_AGENT, '     ');
+  }
+
+  // More Like This
+  logKeyValue('More Like This:', Env.MORE_LIKE_THIS_URL);
+  if (Env.DEFAULT_MORE_LIKE_THIS_TIMEOUT) {
+    logKeyValue(
+      '  Timeout:',
+      formatMilliseconds(Env.DEFAULT_MORE_LIKE_THIS_TIMEOUT),
+      '     '
+    );
+  }
+  if (Env.DEFAULT_MORE_LIKE_THIS_USER_AGENT) {
+    logKeyValue(
+      '  User Agent:',
+      Env.DEFAULT_MORE_LIKE_THIS_USER_AGENT,
+      '     '
+    );
   }
 
   // Additional Features

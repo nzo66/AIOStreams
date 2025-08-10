@@ -2,7 +2,7 @@ import { ParsedStream, UserData } from '../db/schemas';
 import { createLogger } from '../utils';
 import { createProxy } from '../proxy';
 
-const logger = createLogger('proxifier');
+const logger = createLogger('proxy');
 
 class Proxifier {
   private userData: UserData;
@@ -14,13 +14,22 @@ class Proxifier {
   private shouldProxyStream(stream: ParsedStream): boolean {
     const streamService = stream.service ? stream.service.id : 'none';
     const proxy = this.userData.proxy;
-    if (!stream.url || !proxy?.enabled) {
+    if (!stream.url || !proxy?.enabled || !proxy.url) {
+      return false;
+    }
+    if (stream.proxied) {
+      return false;
+    }
+    const streamUrl = new URL(stream.url);
+    const proxyUrl = new URL(proxy.url);
+    if (streamUrl.host === proxyUrl.host) {
+      stream.proxied = true;
       return false;
     }
 
     const proxyAddon =
       !proxy.proxiedAddons?.length ||
-      proxy.proxiedAddons.includes(stream.addon.presetInstanceId);
+      proxy.proxiedAddons.includes(stream.addon.preset.id);
     const proxyService =
       !proxy.proxiedServices?.length ||
       proxy.proxiedServices.includes(streamService);

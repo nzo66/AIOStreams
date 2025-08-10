@@ -1,8 +1,4 @@
-import { Env } from './env';
-import { Cache } from './cache';
-import { TYPES } from './constants';
-import { makeRequest } from './http';
-
+import { Env, Cache, TYPES, makeRequest } from '../utils';
 export type ExternalIdType = 'imdb' | 'tmdb' | 'tvdb';
 
 interface ExternalId {
@@ -21,9 +17,9 @@ const ID_CACHE_TTL = 24 * 60 * 60; // 24 hours
 const TITLE_CACHE_TTL = 7 * 24 * 60 * 60; // 7 days
 const ACCESS_TOKEN_CACHE_TTL = 2 * 24 * 60 * 60; // 2 day
 
-export interface Metadata {
+export interface TMDBMetadataResponse {
   titles: string[];
-  year?: string;
+  year: string;
   seasons?: {
     season_number: number;
     episode_count: number;
@@ -35,16 +31,20 @@ export class TMDBMetadata {
   private readonly TVDB_ID_REGEX = /^(?:tvdb)[-:](\d+)(?::\d+:\d+)?$/;
   private readonly IMDB_ID_REGEX = /^(?:tt)(\d+)(?::\d+:\d+)?$/;
   private readonly idCache: Cache<string, string>;
-  private readonly metadataCache: Cache<string, Metadata>;
-  private readonly accessToken: string;
+  private readonly metadataCache: Cache<string, TMDBMetadataResponse>;
+  private readonly accessToken: string | undefined;
+  private readonly apiKey: string | undefined;
   private readonly validationCache: Cache<string, boolean>;
-  public constructor(accessToken?: string) {
-    if (!accessToken && !Env.TMDB_ACCESS_TOKEN) {
-      throw new Error('TMDB Access Token is not set');
+  public constructor(auth?: { accessToken?: string; apiKey?: string }) {
+    if (!auth?.accessToken && !Env.TMDB_ACCESS_TOKEN && !auth?.apiKey) {
+      throw new Error('TMDB Access Token or API Key is not set');
     }
-    this.accessToken = (accessToken || Env.TMDB_ACCESS_TOKEN)!;
+    this.accessToken = auth?.accessToken || Env.TMDB_ACCESS_TOKEN;
+    this.apiKey = auth?.apiKey;
     this.idCache = Cache.getInstance<string, string>('tmdb_id_conversion');
-    this.metadataCache = Cache.getInstance<string, Metadata>('tmdb_metadata');
+    this.metadataCache = Cache.getInstance<string, TMDBMetadataResponse>(
+      'tmdb_metadata'
+    );
     this.validationCache = Cache.getInstance<string, boolean>(
       'tmdb_validation'
     );
@@ -53,6 +53,7 @@ export class TMDBMetadata {
   private getHeaders(): Record<string, string> {
     return {
       Authorization: `Bearer ${this.accessToken}`,
+      'Content-Type': 'application/json',
     };
   }
 
@@ -89,7 +90,7 @@ export class TMDBMetadata {
 
     const url = new URL(API_BASE_URL + FIND_BY_ID_PATH + `/${id.value}`);
     url.searchParams.set('external_source', `${id.type}_id`);
-
+    this.addSearchParams(url);
     const response = await makeRequest(url.toString(), {
       timeout: 10000,
       headers: this.getHeaders(),
@@ -121,16 +122,10 @@ export class TMDBMetadata {
   public async getMetadata(
     id: string,
     type: (typeof TYPES)[number]
-  ): Promise<Metadata> {
+  ): Promise<TMDBMetadataResponse> {
     if (!['movie', 'series', 'anime'].includes(type)) {
-      return { titles: [], year: undefined };
+      throw new Error(`Invalid type: ${type}`);
     }
-
-    let metadata: Metadata = {
-      titles: [],
-      year: undefined,
-      seasons: undefined,
-    };
 
     const externalId = this.parseExternalId(id);
     if (!externalId) {
@@ -145,7 +140,7 @@ export class TMDBMetadata {
     const cacheKey = `${tmdbId}:${type}`;
     const cachedMetadata = this.metadataCache.get(cacheKey);
     if (cachedMetadata) {
-      metadata = cachedMetadata;
+      return cachedMetadata;
     }
 
     // Fetch primary title from details endpoint
@@ -154,7 +149,7 @@ export class TMDBMetadata {
         (type === 'movie' ? MOVIE_DETAILS_PATH : TV_DETAILS_PATH) +
         `/${tmdbId}`
     );
-
+    this.addSearchParams(detailsUrl);
     const detailsResponse = await makeRequest(detailsUrl.toString(), {
       timeout: 10000,
       headers: this.getHeaders(),
@@ -185,7 +180,7 @@ export class TMDBMetadata {
         `/${tmdbId}` +
         ALTERNATIVE_TITLES_PATH
     );
-
+    this.addSearchParams(altTitlesUrl);
     const altTitlesResponse = await makeRequest(altTitlesUrl.toString(), {
       timeout: 10000,
       headers: this.getHeaders(),
@@ -206,21 +201,33 @@ export class TMDBMetadata {
     // Combine primary title with alternative titles, ensuring no duplicates
     const allTitles = [primaryTitle, ...alternativeTitles];
     const uniqueTitles = [...new Set(allTitles)];
-    metadata.titles = uniqueTitles;
-    metadata.year = year;
-    metadata.seasons = seasons;
+    const metadata: TMDBMetadataResponse = {
+      titles: uniqueTitles,
+      year,
+      seasons,
+    };
     // Cache the result
     this.metadataCache.set(cacheKey, metadata, TITLE_CACHE_TTL);
     return metadata;
   }
 
+  private addSearchParams(url: URL) {
+    if (this.apiKey) {
+      url.searchParams.set('api_key', this.apiKey);
+    }
+  }
+
   public async validateAccessToken() {
-    const cacheKey = this.accessToken;
+    const cacheKey = this.accessToken || this.apiKey;
+    if (!cacheKey) {
+      throw new Error('TMDB Access Token or API Key is not set');
+    }
     const cachedResult = this.validationCache.get(cacheKey);
     if (cachedResult) {
       return cachedResult;
     }
     const url = new URL(API_BASE_URL + '/authentication');
+    this.addSearchParams(url);
     const validationResponse = await makeRequest(url.toString(), {
       timeout: 10000,
       headers: this.getHeaders(),

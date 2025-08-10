@@ -43,6 +43,7 @@ const StreamProxyConfig = z.object({
   enabled: z.boolean().optional(),
   id: z.enum(constants.PROXY_SERVICES).optional(),
   url: z.string().optional(),
+  publicUrl: z.string().optional(),
   credentials: z.string().optional(),
   publicIp: z.union([z.string().ip(), z.literal('')]).optional(),
   proxiedAddons: z.array(z.string().min(1)).optional(),
@@ -106,8 +107,11 @@ const ResourceList = z.array(ResourceSchema);
 
 const AddonSchema = z.object({
   instanceId: z.string().min(1).optional(), // uniquely identifies the addon in a given list of addons
-  presetType: z.string().min(1), // reference to the type of the preset that created this addon
-  presetInstanceId: z.string().min(1), // reference to the instance id of the preset that created this addon
+  preset: z.object({
+    id: z.string(),
+    type: z.string(),
+    options: z.record(z.string(), z.any()),
+  }),
   manifestUrl: z.string().url(),
   enabled: z.boolean(),
   resources: ResourceList.optional(),
@@ -117,6 +121,8 @@ const AddonSchema = z.object({
   timeout: z.number().min(1),
   library: z.boolean().optional(),
   streamPassthrough: z.boolean().optional(),
+  resultPassthrough: z.boolean().optional(),
+  forceToTop: z.boolean().optional(),
   headers: z.record(z.string().min(1), z.string().min(1)).optional(),
   ip: z.string().ip().optional(),
 });
@@ -179,10 +185,19 @@ const OptionDefinition = z.object({
     'url',
     'alert',
     'socials',
+    'oauth',
   ]),
+  oauth: z
+    .object({
+      authorisationUrl: z.string().url(),
+      oauthResultField: z.object({
+        name: z.string().min(1),
+        description: z.string().min(1),
+      }),
+    })
+    .optional(),
   required: z.boolean().optional(),
   default: z.any().optional(),
-  // sensitive: z.boolean().optional(),
   forced: z.any().optional(),
   options: z
     .array(
@@ -338,6 +353,7 @@ export const UserDataSchema = z.object({
   requiredStreamExpressions: z.array(z.string().min(1).max(3000)).optional(),
   preferredStreamExpressions: z.array(z.string().min(1).max(3000)).optional(),
   includedStreamExpressions: z.array(z.string().min(1).max(3000)).optional(),
+  disableGroups: z.boolean().optional(),
   groups: z
     .array(
       z.object({
@@ -366,6 +382,7 @@ export const UserDataSchema = z.object({
     uncachedAnime: z.array(SortCriterion).optional(),
   }),
   rpdbApiKey: z.string().optional(),
+  rpdbUseRedirectApi: z.boolean().optional(),
   formatter: Formatter,
   proxy: StreamProxyConfig.optional(),
   resultLimits: ResultLimitOptions.optional(),
@@ -379,6 +396,7 @@ export const UserDataSchema = z.object({
     .object({
       mode: z.enum(['exact', 'contains']).optional(),
       matchYear: z.boolean().optional(),
+      yearTolerance: z.number().min(0).max(100).optional(),
       enabled: z.boolean().optional(),
       requestTypes: z.array(z.string()).optional(),
       addons: z.array(z.string()).optional(),
@@ -417,7 +435,7 @@ export const TABLES = {
 const strictManifestResourceSchema = z.object({
   name: z.enum(constants.RESOURCES),
   types: z.array(z.string()),
-  idPrefixes: z.array(z.string().min(1)).or(z.null()).optional(),
+  idPrefixes: z.array(z.string()).or(z.null()).optional(),
 });
 
 export type StrictManifestResource = z.infer<
@@ -455,7 +473,7 @@ export const ManifestSchema = z
     description: z.string(),
     version: z.string(),
     types: z.array(z.string()),
-    idPrefixes: z.array(z.string().min(1)).or(z.null()).optional(),
+    idPrefixes: z.array(z.string()).or(z.null()).optional(),
     resources: z.array(ManifestResourceSchema),
     catalogs: z.array(ManifestCatalogSchema),
     addonCatalogs: z.array(AddonCatalogDefinitionSchema).optional(),
@@ -552,7 +570,7 @@ const MetaLinkSchema = z
 
 const MetaVideoSchema = z
   .object({
-    id: z.string().min(1),
+    id: z.string(),
     title: z.string().or(z.null()).optional(),
     name: z.string().or(z.null()).optional(),
     released: z.string().datetime().or(z.null()).optional(),
@@ -636,13 +654,16 @@ export const AddonCatalogResponseSchema = z.object({
 export type AddonCatalogResponse = z.infer<typeof AddonCatalogResponseSchema>;
 export type AddonCatalog = z.infer<typeof AddonCatalogSchema>;
 
-export const ExtrasTypesSchema = z.enum(['skip', 'genre', 'search']);
-export type ExtrasTypes = z.infer<typeof ExtrasTypesSchema>;
-export const ExtrasSchema = z.object({
-  skip: z.coerce.number().optional(),
-  genre: z.string().optional(),
-  search: z.string().optional(),
-});
+export const ExtrasSchema = z
+  .object({
+    skip: z.coerce.number().optional(),
+    genre: z.string().optional(),
+    search: z.string().optional(),
+    filename: z.string().optional(),
+    videoHash: z.string().optional(),
+    videoSize: z.coerce.number().optional(),
+  })
+  .passthrough();
 export type Extras = z.infer<typeof ExtrasSchema>;
 
 const ParsedFileSchema = z.object({
@@ -795,6 +816,7 @@ const PresetMetadataSchema = z.object({
   DESCRIPTION: z.string(),
   URL: z.string(),
   TIMEOUT: z.number(),
+  BUILTIN: z.boolean().optional(),
   USER_AGENT: z.string(),
   SUPPORTED_SERVICES: z.array(z.string()),
   OPTIONS: z.array(OptionDefinition),
@@ -818,6 +840,7 @@ const PresetMinimalMetadataSchema = z.object({
   SUPPORTED_STREAM_TYPES: z.array(StreamTypes),
   SUPPORTED_SERVICES: z.array(z.string()),
   OPTIONS: z.array(OptionDefinition),
+  BUILTIN: z.boolean().optional(),
 });
 
 const StatusResponseSchema = z.object({
@@ -833,6 +856,12 @@ const StatusResponseSchema = z.object({
     customHtml: z.string().optional(),
     protected: z.boolean(),
     regexFilterAccess: z.enum(['none', 'trusted', 'all']),
+    allowedRegexPatterns: z
+      .object({
+        patterns: z.array(z.string()),
+        description: z.string().optional(),
+      })
+      .optional(),
     loggingSensitiveInfo: z.boolean(),
     tmdbApiAvailable: z.boolean(),
     forced: z.object({
@@ -840,6 +869,7 @@ const StatusResponseSchema = z.object({
         enabled: z.boolean().or(z.null()),
         id: z.string().or(z.null()),
         url: z.string().or(z.null()),
+        publicUrl: z.string().or(z.null()),
         publicIp: z.string().or(z.null()),
         credentials: z.string().or(z.null()),
         disableProxiedAddons: z.boolean(),
@@ -851,6 +881,7 @@ const StatusResponseSchema = z.object({
         enabled: z.boolean().or(z.null()),
         id: z.string().or(z.null()),
         url: z.string().or(z.null()),
+        publicUrl: z.string().or(z.null()),
         publicIp: z.string().or(z.null()),
         credentials: z.string().or(z.null()),
         proxiedServices: z.array(z.string()).or(z.null()),

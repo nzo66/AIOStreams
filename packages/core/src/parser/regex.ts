@@ -60,8 +60,7 @@ export const PARSE_REGEX: PARSE_REGEX = {
     '144p': createRegex('(bd|hd|m)?(144(p|i)?)'),
   },
   qualities: {
-    'BluRay REMUX':
-      /((?<=remux.*)[ .\-_](blu[ .\-_]?ray))|((blu[ .\-_]?ray)[ .\-_](?=.*remux))|((?<![^\s\[(_\-.,])(bd|br|b|uhd)[ .\\-_]?remux(?=\s\)\]_.\-,]|$))/i,
+    'BluRay REMUX': /(remux.*bluray|bluray.*remux|(bd|br|b|uhd)[.\-_]?remux)/i,
     BluRay: createRegex(
       'blu[ .\\-_]?ray|((bd|br|b)[ .\\-_]?(rip|r)?)(?![ .\\-_]?remux)'
     ),
@@ -141,7 +140,7 @@ export const PARSE_REGEX: PARSE_REGEX = {
     Portuguese: createLanguageRegex('portuguese|por'),
     Spanish: createLanguageRegex('spanish|spa|esp'),
     French: createLanguageRegex('french|fra|fr|vf|vff|vfi|vf2|vfq|truefrench'),
-    German: createLanguageRegex('german|ger'),
+    German: createLanguageRegex('deu(tsch)?(land)?|ger(man)?'),
     Italian: createLanguageRegex('italian|ita'),
     Korean: createLanguageRegex('korean|kor'),
     Hindi: createLanguageRegex('hindi|hin'),
