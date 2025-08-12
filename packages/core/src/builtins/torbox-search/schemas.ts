@@ -26,6 +26,9 @@ export const TorBoxApiResponseSchema = <T>(dataSchema: z.ZodSchema<T>) =>
 const TorBoxSearchApiMetadataSchema = z.object({
   globalID: z.string(),
   title: z.string(),
+  titles: z.array(z.string()),
+  imdb_id: z.string().nullable(),
+  tmdb_id: z.number().nullable(),
 });
 
 const TorBoxSearchApiTorrentSchema = z.object({
@@ -81,6 +84,7 @@ export const TorBoxApiUsenetDownloadLinkSchema = z.string();
 export const TorBoxSearchAddonUserDataSchema = z.object({
   torBoxApiKey: z.string(),
   searchUserEngines: z.boolean(),
+  tmdbAccessToken: z.string().optional(),
   sources: z
     .array(z.enum(['torrent', 'usenet']))
     .min(1, 'At least one source must be configured'),

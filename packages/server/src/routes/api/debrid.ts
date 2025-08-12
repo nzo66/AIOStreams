@@ -114,7 +114,7 @@ router.get(
         return;
       }
 
-      res.status(302).redirect(streamUrl);
+      res.status(307).redirect(streamUrl);
     } catch (error: any) {
       logger.error(
         `Got unexpected error during debrid resolve: ${error.message}`

@@ -40,9 +40,7 @@ export class TorboxSearchParser extends StreamParser {
     service: ParsedStream['service'],
     currentParsedStream: ParsedStream
   ): ParsedStream['type'] {
-    return (stream as any).type === 'usenet'
-      ? 'usenet'
-      : super.getStreamType(stream, service, currentParsedStream);
+    return (stream as any).type === 'usenet' ? 'usenet' : 'debrid';
   }
 }
 
@@ -225,6 +223,7 @@ export class TorBoxSearchPreset extends Preset {
       sources: sources,
       torBoxApiKey: torboxApiKey,
       searchUserEngines: options.userSearchEngines,
+      tmdbAccessToken: userData.tmdbAccessToken,
       services: services.map((service) => ({
         id: service,
         credential: this.getServiceCredential(service, userData, {

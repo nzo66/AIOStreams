@@ -30,24 +30,22 @@ export class TMDBMetadata {
   private readonly TMDB_ID_REGEX = /^(?:tmdb)[-:](\d+)(?::\d+:\d+)?$/;
   private readonly TVDB_ID_REGEX = /^(?:tvdb)[-:](\d+)(?::\d+:\d+)?$/;
   private readonly IMDB_ID_REGEX = /^(?:tt)(\d+)(?::\d+:\d+)?$/;
-  private readonly idCache: Cache<string, string>;
-  private readonly metadataCache: Cache<string, TMDBMetadataResponse>;
+  private static readonly idCache: Cache<string, string> = Cache.getInstance<
+    string,
+    string
+  >('tmdb_id_conversion');
+  private static readonly metadataCache: Cache<string, TMDBMetadataResponse> =
+    Cache.getInstance<string, TMDBMetadataResponse>('tmdb_metadata');
   private readonly accessToken: string | undefined;
   private readonly apiKey: string | undefined;
-  private readonly validationCache: Cache<string, boolean>;
+  private static readonly validationCache: Cache<string, boolean> =
+    Cache.getInstance<string, boolean>('tmdb_validation');
   public constructor(auth?: { accessToken?: string; apiKey?: string }) {
     if (!auth?.accessToken && !Env.TMDB_ACCESS_TOKEN && !auth?.apiKey) {
       throw new Error('TMDB Access Token or API Key is not set');
     }
     this.accessToken = auth?.accessToken || Env.TMDB_ACCESS_TOKEN;
     this.apiKey = auth?.apiKey;
-    this.idCache = Cache.getInstance<string, string>('tmdb_id_conversion');
-    this.metadataCache = Cache.getInstance<string, TMDBMetadataResponse>(
-      'tmdb_metadata'
-    );
-    this.validationCache = Cache.getInstance<string, boolean>(
-      'tmdb_validation'
-    );
   }
 
   private getHeaders(): Record<string, string> {
@@ -83,7 +81,7 @@ export class TMDBMetadata {
 
     // Check cache first
     const cacheKey = `${id.type}:${id.value}:${type}`;
-    const cachedId = this.idCache.get(cacheKey);
+    const cachedId = TMDBMetadata.idCache.get(cacheKey);
     if (cachedId) {
       return cachedId;
     }
@@ -110,7 +108,7 @@ export class TMDBMetadata {
 
     const tmdbId = meta.id.toString();
     // Cache the result
-    this.idCache.set(cacheKey, tmdbId, ID_CACHE_TTL);
+    TMDBMetadata.idCache.set(cacheKey, tmdbId, ID_CACHE_TTL);
     return tmdbId;
   }
 
@@ -138,7 +136,7 @@ export class TMDBMetadata {
 
     // Check cache first
     const cacheKey = `${tmdbId}:${type}`;
-    const cachedMetadata = this.metadataCache.get(cacheKey);
+    const cachedMetadata = TMDBMetadata.metadataCache.get(cacheKey);
     if (cachedMetadata) {
       return cachedMetadata;
     }
@@ -207,7 +205,7 @@ export class TMDBMetadata {
       seasons,
     };
     // Cache the result
-    this.metadataCache.set(cacheKey, metadata, TITLE_CACHE_TTL);
+    TMDBMetadata.metadataCache.set(cacheKey, metadata, TITLE_CACHE_TTL);
     return metadata;
   }
 
@@ -222,7 +220,7 @@ export class TMDBMetadata {
     if (!cacheKey) {
       throw new Error('TMDB Access Token or API Key is not set');
     }
-    const cachedResult = this.validationCache.get(cacheKey);
+    const cachedResult = TMDBMetadata.validationCache.get(cacheKey);
     if (cachedResult) {
       return cachedResult;
     }
@@ -239,7 +237,7 @@ export class TMDBMetadata {
     }
     const validationData: any = await validationResponse.json();
     const isValid = validationData.success;
-    this.validationCache.set(cacheKey, isValid, ACCESS_TOKEN_CACHE_TTL);
+    TMDBMetadata.validationCache.set(cacheKey, isValid, ACCESS_TOKEN_CACHE_TTL);
     return isValid;
   }
 }

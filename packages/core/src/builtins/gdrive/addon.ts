@@ -181,10 +181,7 @@ export class GDriveAddon {
     switch (true) {
       case parsedId.type === 'kitsu_id': {
         const kitsuMetadata = new KitsuMetadata();
-        const metadata = await kitsuMetadata.getMetadata(
-          `kitsu:${parsedId.id}`,
-          type
-        );
+        const metadata = await kitsuMetadata.getMetadata(parsedId, type);
         titles = metadata.titles ?? [metadata.title];
         year = metadata.year;
         break;

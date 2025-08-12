@@ -125,10 +125,7 @@ class StreamParser {
     parsedStream.parsedFile = this.getParsedFile(stream, parsedStream);
 
     parsedStream.torrent = {
-      infoHash:
-        parsedStream.type === 'p2p'
-          ? (stream.infoHash ?? undefined)
-          : this.getInfoHash(stream, parsedStream),
+      infoHash: stream.infoHash ?? this.getInfoHash(stream, parsedStream),
       seeders: this.getSeeders(stream, parsedStream),
       sources: stream.sources ?? undefined,
       fileIdx: stream.fileIdx ?? undefined,

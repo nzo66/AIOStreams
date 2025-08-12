@@ -5,6 +5,7 @@ import {
   createLogger,
   encryptString,
   UserRepository,
+  validateConfig,
 } from '@aiostreams/core';
 import { userApiRateLimiter } from '../../middlewares/ratelimit';
 import { createResponse } from '../../utils/responses';
@@ -69,6 +70,7 @@ router.get('/', async (req, res, next) => {
   let userData = null;
   try {
     userData = await UserRepository.getUser(uuid, password);
+    userData = await validateConfig(userData, true, false);
   } catch (error: any) {
     if (error instanceof APIError) {
       next(error);

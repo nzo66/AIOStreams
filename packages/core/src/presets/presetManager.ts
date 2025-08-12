@@ -48,6 +48,7 @@ import { StreamAsiaPreset } from './streamasia';
 import { MoreLikeThisPreset } from './moreLikeThis';
 import { GDriveAPI } from '../builtins/gdrive';
 import { GDrivePreset } from './gdrive';
+import { ContentDeepDivePreset } from './contentDeepDive';
 import { GoogleOAuth } from '../builtins/gdrive/api';
 import { TorBoxSearchPreset } from './torboxSearch';
 import { Env } from '../utils/env';
@@ -103,6 +104,7 @@ let PRESET_LIST: string[] = [
   'subhero',
   'aiosubtitle',
   'more-like-this',
+  'content-deep-dive',
   'aiostreams',
 ].filter(Boolean);
 
@@ -220,6 +222,8 @@ export class PresetManager {
         return StreamAsiaPreset;
       case 'more-like-this':
         return MoreLikeThisPreset;
+      case 'content-deep-dive':
+        return ContentDeepDivePreset;
       case 'stremio-gdrive':
         return GDrivePreset;
       case 'torbox-search':

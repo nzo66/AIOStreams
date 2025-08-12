@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { number, z } from 'zod';
 import { Stream } from '../../db';
 import {
   Cache,
@@ -15,15 +15,24 @@ import TorboxSearchApi, {
   TorboxSearchApiIdType,
 } from './search-api';
 import { Torrent, convertDataToTorrents } from './torrent';
-import { StremThruError } from 'stremthru';
+import { TMDBMetadata } from '../../metadata/tmdb';
+import { calculateAbsoluteEpisode } from '../utils/general';
 
 const logger = createLogger('torbox-search');
+
+export interface TitleMetadata {
+  titles: string[];
+  seasons?: {
+    number: string;
+    episodes: number;
+  }[];
+}
 
 abstract class SourceHandler {
   protected searchCache = Cache.getInstance<string, Torrent[]>(
     'torbox-search-torrents'
   );
-  protected metadataCache = Cache.getInstance<string, string>(
+  protected metadataCache = Cache.getInstance<string, TitleMetadata>(
     'torbox-search-metadata'
   );
 
@@ -37,11 +46,13 @@ abstract class SourceHandler {
   ): Promise<Stream[]>;
 
   protected createStream(
+    id: ParsedId,
     torrent: Torrent,
     file: DebridFile,
     userData: z.infer<typeof TorBoxSearchAddonUserDataSchema>,
     season?: string,
-    episode?: string
+    episode?: string,
+    absoluteEpisode?: string
   ): Stream & { type: 'torrent' | 'usenet' } {
     const storeAuth = {
       storeName: file.service.id,
@@ -53,13 +64,23 @@ abstract class SourceHandler {
     const playbackInfo =
       torrent.type === 'torrent'
         ? {
+            parsedId: {
+              id: id.id,
+              type: id.type,
+              season: season || undefined,
+              episode: episode || undefined,
+              absoluteEpisode: absoluteEpisode || undefined,
+            },
             type: 'torrent',
             hash: torrent.hash,
             index: file.index,
-            season,
-            episode,
+            title: torrent.title,
           }
-        : { type: 'usenet', nzb: torrent.nzb };
+        : {
+            type: 'usenet',
+            nzb: torrent.nzb,
+            title: torrent.title,
+          };
 
     const svcMeta = SERVICE_DETAILS[file.service.id];
     const name = `[${svcMeta.shortName} ${file.service.cached ? '⚡' : '⏳'}] TorBox Search`;
@@ -70,6 +91,7 @@ abstract class SourceHandler {
       name,
       description,
       type: torrent.type,
+      infoHash: torrent.hash,
       behaviorHints: {
         videoSize: file.size,
         filename: file.filename,
@@ -113,7 +135,13 @@ export class TorrentSourceHandler extends SourceHandler {
     const { type, id, season, episode } = parsedId;
     let torrents: Torrent[] = [];
     try {
-      torrents = await this.fetchTorrents(type, id, season, episode);
+      torrents = await this.fetchTorrents(
+        type,
+        id,
+        season,
+        episode,
+        userData.tmdbAccessToken
+      );
     } catch (error) {
       if (error instanceof TorboxApiError) {
         switch (error.errorCode) {
@@ -133,12 +161,16 @@ export class TorrentSourceHandler extends SourceHandler {
 
     if (torrents.length === 0) return [];
 
-    const requestedTitle = this.metadataCache.get(`metadata:${type}:${id}`);
+    const titleMetadata = this.metadataCache.get(`metadata:${type}:${id}`);
     const filesByHash = await this.getAvailableFilesFromDebrid(
       torrents,
       parsedId,
-      requestedTitle
+      titleMetadata
     );
+    const absoluteEpisode =
+      season && episode && titleMetadata?.seasons
+        ? calculateAbsoluteEpisode(season, episode, titleMetadata.seasons)
+        : undefined;
 
     const streams: Stream[] = [];
     for (const torrent of torrents) {
@@ -146,7 +178,15 @@ export class TorrentSourceHandler extends SourceHandler {
       if (availableFiles) {
         for (const file of availableFiles) {
           streams.push(
-            this.createStream(torrent, file, userData, season, episode)
+            this.createStream(
+              parsedId,
+              torrent,
+              file,
+              userData,
+              season,
+              episode,
+              absoluteEpisode
+            )
           );
         }
       }
@@ -161,7 +201,8 @@ export class TorrentSourceHandler extends SourceHandler {
     idType: TorboxSearchApiIdType,
     id: string,
     season?: string,
-    episode?: string
+    episode?: string,
+    tmdbAccessToken?: string
   ): Promise<Torrent[]> {
     const cacheKey = `torrents:${idType}:${id}:${season}:${episode}`;
     const cachedTorrents = this.searchCache.get(cacheKey);
@@ -176,6 +217,7 @@ export class TorrentSourceHandler extends SourceHandler {
       search_user_engines: this.searchUserEngines ? 'true' : 'false',
       season,
       episode,
+      metadata: 'true',
     });
 
     const torrents = convertDataToTorrents(data.torrents);
@@ -183,10 +225,38 @@ export class TorrentSourceHandler extends SourceHandler {
       `Found ${torrents.length} torrents for ${id} in ${getTimeTakenSincePoint(start)}`
     );
 
-    if (data.metadata?.title) {
+    if (data.metadata) {
+      const { tmdb_id, titles } = data.metadata;
+      let seasons;
+
+      if (
+        ['kitsu_id', 'mal_id', 'anilist_id', 'anidb_id'].includes(idType) &&
+        tmdb_id
+      ) {
+        const seasonFetchStart = Date.now();
+        try {
+          const tmdbMetadata = await new TMDBMetadata({
+            accessToken: tmdbAccessToken,
+          }).getMetadata(`tmdb:${tmdb_id}`, 'series');
+          seasons = tmdbMetadata?.seasons?.map(
+            ({ season_number, episode_count }) => ({
+              number: season_number.toString(),
+              episodes: episode_count,
+            })
+          );
+          logger.debug(
+            `Fetched additional season info for ${id} in ${getTimeTakenSincePoint(seasonFetchStart)}`
+          );
+        } catch (error) {
+          logger.error(
+            `Failed to fetch TMDB metadata for ${idType}:${id} - ${error}`
+          );
+        }
+      }
+
       this.metadataCache.set(
         `metadata:${idType}:${id}`,
-        data.metadata.title,
+        { titles: [...new Set(titles)], seasons },
         Env.BUILTIN_TORBOX_SEARCH_METADATA_CACHE_TTL
       );
     }
@@ -203,11 +273,11 @@ export class TorrentSourceHandler extends SourceHandler {
   private async getAvailableFilesFromDebrid(
     torrents: Torrent[],
     parsedId: ParsedId,
-    requestedTitle?: string
+    titleMetadata?: TitleMetadata
   ): Promise<Map<string, DebridFile[]>> {
     const allFiles = new Map<string, DebridFile[]>();
     const servicePromises = this.debridServices.map((service) =>
-      service.getAvailableFiles(torrents, parsedId, requestedTitle)
+      service.getAvailableFiles(torrents, parsedId, titleMetadata)
     );
 
     const results = await Promise.allSettled(servicePromises);
@@ -298,7 +368,14 @@ export class UsenetSourceHandler extends SourceHandler {
         index: -1,
         service: { id: 'torbox', cached: torrent.cached ?? false },
       };
-      return this.createStream(torrent, file, userData, season, episode);
+      return this.createStream(
+        parsedId,
+        torrent,
+        file,
+        userData,
+        season,
+        episode
+      );
     });
   }
 }

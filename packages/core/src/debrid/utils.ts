@@ -17,40 +17,70 @@ export function findMatchingFileInTorrent(
   files: FileWithParsedInfo[],
   chosenIndex?: number,
   requestedFilename?: string,
-  requestedTitle?: string,
+  requestedTitles?: string[],
   season?: string,
   episode?: string,
+  absoluteEpisode?: string,
   expectLinks?: boolean
 ): FileWithParsedInfo | null {
+  let chosenFile = null;
+
   for (const file of files) {
     if (!file.isVideo || file.name?.includes('sample')) {
       continue;
     }
 
-    if (requestedFilename) {
-      if (file.name === requestedFilename) {
-        return file;
-      }
-    }
-
-    if (season || episode) {
+    if (season || episode || absoluteEpisode) {
       if (
-        (requestedTitle ? file.parsed.title === requestedTitle : true) &&
-        ((season && !episode && file.parsed.season === Number(season)) ||
+        (requestedTitles && file.parsed.title
+          ? requestedTitles.some(
+              (title) =>
+                file.parsed.title!.toLowerCase() === title.toLowerCase()
+            )
+          : true) &&
+        ((absoluteEpisode &&
+          !file.parsed.season &&
+          file.parsed.episode === Number(absoluteEpisode)) ||
+          (season && !episode && file.parsed.season === Number(season)) ||
           (episode && !season && file.parsed.episode === Number(episode)) ||
           (season &&
             episode &&
             file.parsed.season === Number(season) &&
             file.parsed.episode === Number(episode)))
       ) {
-        return file;
+        chosenFile = file;
+        break;
       }
     } else {
-      if (requestedTitle) {
-        if (file.parsed.title === requestedTitle) {
-          return file;
+      if (requestedTitles) {
+        if (
+          requestedTitles.some(
+            (title) => file.parsed.title?.toLowerCase() === title.toLowerCase()
+          )
+        ) {
+          console.log(
+            `Choosing file based on requested title match: ${file.name}`
+          );
+          chosenFile = file;
+          break;
         }
       }
+    }
+  }
+
+  if (chosenFile) {
+    return chosenFile;
+  }
+
+  if (requestedFilename) {
+    const requestedFile = files.find(
+      (file) => file.name.toLowerCase() === requestedFilename.toLowerCase()
+    );
+    if (requestedFile) {
+      console.log(
+        `Choosing file based on requested filename match: ${requestedFile.name}`
+      );
+      return requestedFile;
     }
   }
 

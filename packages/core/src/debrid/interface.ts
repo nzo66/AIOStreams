@@ -1,9 +1,10 @@
 import { StremThru, StremThruError } from 'stremthru';
-import { constants, Env, ServiceId, createLogger } from '../utils';
+import { constants, Env, ServiceId, createLogger, Cache } from '../utils';
 import { TorboxApi } from '@torbox/torbox-api';
 import { z } from 'zod';
 import { FileParser } from '../parser';
 import { findMatchingFileInTorrent, isVideoFile } from './utils';
+import { title } from 'process';
 
 const logger = createLogger('debrid');
 
@@ -45,19 +46,24 @@ export const StoreAuthSchema = z.object({
 });
 
 const TorrentPlaybackInfoSchema = z.object({
+  parsedId: z.object({
+    id: z.string(),
+    type: z.string(),
+    season: z.string().optional(),
+    episode: z.string().optional(),
+    absoluteEpisode: z.string().optional(),
+  }),
   type: z.literal('torrent'),
   hash: z.string(),
+  title: z.string().optional(),
   magnet: z.string().optional(),
   index: z.number().optional(),
-  season: z.string().optional(),
-  episode: z.string().optional(),
 });
 
 const UsenetPlaybackInfoSchema = z.object({
   type: z.literal('usenet'),
+  title: z.string().optional(),
   nzb: z.string(),
-  season: z.string().optional(),
-  episode: z.string().optional(),
 });
 
 export const PlaybackInfoSchema = z.discriminatedUnion('type', [
@@ -70,6 +76,9 @@ type PlaybackInfo = z.infer<typeof PlaybackInfoSchema>;
 export class DebridInterface {
   private readonly stremthru: StremThru;
   private readonly torboxApi: TorboxApi | undefined;
+  private static playbackLinkCache = Cache.getInstance<string, string>(
+    'debrid-link'
+  );
 
   constructor(
     private readonly storeAuth: StoreAuth,
@@ -108,7 +117,13 @@ export class DebridInterface {
     playbackInfo: PlaybackInfo & { type: 'torrent' },
     filename: string
   ) {
-    let { hash, index, season, episode } = playbackInfo;
+    let { hash, index, parsedId } = playbackInfo;
+    const cacheKey = `${this.storeAuth.storeName}:${hash}:${index ?? 'undefined'}:${this.storeAuth.storeCredential}:${this.clientIp}`;
+    const cachedLink = DebridInterface.playbackLinkCache.get(cacheKey);
+    if (cachedLink) {
+      logger.debug(`Using cached link for ${hash}`);
+      return cachedLink;
+    }
     if (index === -1) {
       index = undefined;
     }
@@ -121,7 +136,6 @@ export class DebridInterface {
     });
 
     if (magnet.data.status !== 'downloaded') {
-      // not cached, cannot be played
       return undefined;
     }
 
@@ -138,15 +152,14 @@ export class DebridInterface {
       };
     });
 
-    const requestedTitle = FileParser.parse(magnet.data.name).title;
-
     const file = findMatchingFileInTorrent(
       files,
       index,
       filename,
-      requestedTitle,
-      season,
-      episode,
+      undefined,
+      parsedId.season,
+      parsedId.episode,
+      parsedId.absoluteEpisode,
       true
     );
 
@@ -155,9 +168,9 @@ export class DebridInterface {
     }
 
     logger.debug(`Found matching file`, {
-      season,
-      episode,
-      requestedTitle,
+      season: parsedId.season,
+      episode: parsedId.episode,
+      absoluteEpisode: parsedId.absoluteEpisode,
       chosenFile: file.name,
       availableFiles: `[${files.map((file) => file.name).join(', ')}]`,
     });
@@ -167,7 +180,9 @@ export class DebridInterface {
       clientIp: this.clientIp,
     });
 
-    return link.data.link;
+    const playbackLink = link.data.link;
+    DebridInterface.playbackLinkCache.set(cacheKey, playbackLink, 60 * 30);
+    return playbackLink;
   }
 
   private async resolveUsenet(

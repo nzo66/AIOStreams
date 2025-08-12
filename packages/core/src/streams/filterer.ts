@@ -35,6 +35,7 @@ class StreamFilterer {
     const isAnime = id.startsWith('kitsu');
     const skipReasons: Record<string, SkipReason> = {
       titleMatching: { total: 0, details: {} },
+      yearMatching: { total: 0, details: {} },
       seasonEpisodeMatching: { total: 0, details: {} },
       excludedStreamType: { total: 0, details: {} },
       requiredStreamType: { total: 0, details: {} },
@@ -108,10 +109,8 @@ class StreamFilterer {
     };
 
     const performTitleMatch = (stream: ParsedStream) => {
-      // const titleMatchingOptions = this.userData.titleMatching;
       const titleMatchingOptions = {
         mode: 'exact',
-        yearTolerance: 1,
         ...(this.userData.titleMatching ?? {}),
       };
       if (!titleMatchingOptions || !titleMatchingOptions.enabled) {
@@ -122,8 +121,6 @@ class StreamFilterer {
       }
 
       const streamTitle = stream.parsedFile?.title;
-      const streamYear = stream.parsedFile?.year;
-      // now check if we need to check this stream based on the addon and request type
       if (
         titleMatchingOptions.requestTypes?.length &&
         (!titleMatchingOptions.requestTypes.includes(type) ||
@@ -139,34 +136,47 @@ class StreamFilterer {
         return true;
       }
 
-      if (
-        !streamTitle ||
-        (titleMatchingOptions.matchYear && !streamYear && type === 'movie')
-      ) {
+      if (!streamTitle) {
         // only filter out movies without a year as series results usually don't include a year
         return false;
       }
-      const yearMatch =
-        titleMatchingOptions.matchYear && streamYear
-          ? requestedMetadata.year === streamYear ||
-            (titleMatchingOptions.yearTolerance &&
-              Math.abs(Number(requestedMetadata.year) - Number(streamYear)) <=
-                titleMatchingOptions.yearTolerance)
-          : true;
 
       if (titleMatchingOptions.mode === 'exact') {
-        return (
-          requestedMetadata?.titles.some(
-            (title) => normaliseTitle(title) === normaliseTitle(streamTitle)
-          ) && yearMatch
+        return requestedMetadata?.titles.some(
+          (title) => normaliseTitle(title) === normaliseTitle(streamTitle)
         );
       } else {
-        return (
-          requestedMetadata?.titles.some((title) =>
-            normaliseTitle(streamTitle).includes(normaliseTitle(title))
-          ) && yearMatch
+        return requestedMetadata?.titles.some((title) =>
+          normaliseTitle(streamTitle).includes(normaliseTitle(title))
         );
       }
+    };
+
+    const performYearMatch = (stream: ParsedStream) => {
+      const yearMatchingOptions = {
+        tolerance: 1,
+        ...this.userData.yearMatching,
+      };
+
+      if (!yearMatchingOptions || !yearMatchingOptions.enabled) {
+        return true;
+      }
+
+      if (!requestedMetadata || !requestedMetadata.year) {
+        return true;
+      }
+
+      const streamYear = stream.parsedFile?.year;
+      if (!streamYear && type === 'movie') {
+        // only filter out movies without a year as series results usually don't include a year
+        return false;
+      }
+      return streamYear
+        ? requestedMetadata.year === streamYear ||
+            (yearMatchingOptions.tolerance &&
+              Math.abs(Number(requestedMetadata.year) - Number(streamYear)) <=
+                yearMatchingOptions.tolerance)
+        : true;
     };
 
     const performSeasonEpisodeMatch = (stream: ParsedStream) => {
@@ -987,6 +997,17 @@ class StreamFilterer {
         ] =
           (skipReasons.titleMatching.details[
             `${stream.parsedFile?.title || 'Unknown Title'}${type === 'movie' ? ` - (${stream.parsedFile?.year || 'Unknown Year'})` : ''}`
+          ] || 0) + 1;
+        return false;
+      }
+
+      if (!performYearMatch(stream)) {
+        skipReasons.yearMatching.total++;
+        skipReasons.yearMatching.details[
+          `${stream.parsedFile?.title || 'Unknown Title'} - ${stream.parsedFile?.year || 'Unknown Year'}`
+        ] =
+          (skipReasons.yearMatching.details[
+            `${stream.parsedFile?.title || 'Unknown Title'} - ${stream.parsedFile?.year || 'Unknown Year'}`
           ] || 0) + 1;
         return false;
       }

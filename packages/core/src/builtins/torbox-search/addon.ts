@@ -12,6 +12,7 @@ import { IdParser } from '../utils/id-parser';
 import { TorrentSourceHandler, UsenetSourceHandler } from './source-handlers';
 import { TorBoxSearchAddonError } from './errors';
 import { supportedIdTypes } from './search-api';
+import { KitsuMetadata } from '../../metadata/kitsu';
 
 const logger = createLogger('torbox-search');
 
@@ -110,10 +111,30 @@ export class TorBoxSearchAddon {
       throw new TorBoxSearchAddonError(`Unsupported ID: ${id}`, 400);
     }
 
+    const metadataStart = Date.now();
+    if (
+      ['mal_id', 'kitsu_id', 'anilist_id', 'anidb_id'].includes(parsedId.type)
+    ) {
+      const kitsuMetadata = new KitsuMetadata();
+      const metadata = await kitsuMetadata.getMetadata(parsedId, type);
+      parsedId.season = metadata.seasons?.[0]?.season_number
+        ? metadata.seasons[0].season_number.toString()
+        : undefined;
+      logger.debug(
+        `Fetched season metadata for ${id} in ${getTimeTakenSincePoint(metadataStart)}:`,
+        {
+          season: parsedId.season,
+        }
+      );
+    }
+
     logger.info(`Getting streams for ${id}`, {
       type,
       id,
-      parsedId,
+      idType: parsedId.type,
+      season: parsedId.season,
+      episode: parsedId.episode,
+      titleId: parsedId.id,
       sources: this.userData.sources,
     });
 

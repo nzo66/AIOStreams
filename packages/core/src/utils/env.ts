@@ -7,6 +7,7 @@ import {
   bool,
   json,
   makeValidator,
+  makeExactValidator,
   num,
   EnvError,
   port,
@@ -31,6 +32,17 @@ const secretKey = makeValidator((x) => {
     throw new EnvError('Secret key must be a 64-character hex string');
   }
   return x;
+});
+
+const commaSeparated = makeExactValidator<string[]>((x) => {
+  if (x === '') {
+    return [];
+  }
+  const parsed = x.split(',').map((item) => item.trim());
+  if (parsed.some((item) => item === '')) {
+    throw new EnvError('Comma separated values cannot be empty');
+  }
+  return parsed;
 });
 
 const regexes = makeValidator((x) => {
@@ -231,10 +243,10 @@ export const Env = cleanEnv(process.env, {
     desc: 'Secret key for the addon, used for encryption and must be 64 characters of hex',
     example: 'Generate using: openssl rand -hex 32',
   }),
-  ADDON_PASSWORD: str({
+  ADDON_PASSWORD: commaSeparated({
     default:
-      typeof process.env.API_KEY === 'string' ? process.env.API_KEY : undefined,
-    desc: 'Password required to create and modify addon configurations',
+      typeof process.env.API_KEY === 'string' ? [process.env.API_KEY] : [],
+    desc: 'Password required to create and modify addon configurations. Supports multiple passwords separated by commas.',
   }),
   DATABASE_URI: str({
     default: 'sqlite://./data/db.sqlite',
@@ -1337,6 +1349,20 @@ export const Env = cleanEnv(process.env, {
   DEFAULT_MORE_LIKE_THIS_USER_AGENT: userAgent({
     default: undefined,
     desc: 'Default More Like This user agent',
+  }),
+
+  CONTENT_DEEP_DIVE_URL: url({
+    default:
+      'https://stremio-content-deepdive-addon-dc8f7b513289.herokuapp.com',
+    desc: 'Content Deep Dive URL',
+  }),
+  DEFAULT_CONTENT_DEEP_DIVE_TIMEOUT: num({
+    default: undefined,
+    desc: 'Default Content Deep Dive timeout',
+  }),
+  DEFAULT_CONTENT_DEEP_DIVE_USER_AGENT: userAgent({
+    default: undefined,
+    desc: 'Default Content Deep Dive user agent',
   }),
 
   BUILTIN_STREMTHRU_URL: url({

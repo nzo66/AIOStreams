@@ -34,7 +34,10 @@ export class UserRepository {
         );
       }
       let validatedConfig: UserData;
-      if (Env.ADDON_PASSWORD && config.addonPassword !== Env.ADDON_PASSWORD) {
+      if (
+        Env.ADDON_PASSWORD.length > 0 &&
+        !Env.ADDON_PASSWORD.includes(config.addonPassword || '')
+      ) {
         return Promise.reject(
           new APIError(constants.ErrorCode.USER_INVALID_DETAILS)
         );
@@ -211,7 +214,10 @@ export class UserRepository {
           throw new APIError(constants.ErrorCode.USER_INVALID_DETAILS);
         }
 
-        if (Env.ADDON_PASSWORD && config.addonPassword !== Env.ADDON_PASSWORD) {
+        if (
+          Env.ADDON_PASSWORD.length > 0 &&
+          !Env.ADDON_PASSWORD.includes(config.addonPassword || '')
+        ) {
           throw new APIError(
             constants.ErrorCode.USER_INVALID_DETAILS,
             undefined,

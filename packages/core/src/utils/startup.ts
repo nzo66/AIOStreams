@@ -1,10 +1,7 @@
-import { createLogger } from './logger';
+import { createLogger, maskSensitiveInfo } from './logger';
 import { Env } from './env';
 
 const logger = createLogger('startup');
-
-// import { logSensitiveInfo } from './logger';
-import { maskSensitiveInfo } from './logger';
 
 const formatDuration = (seconds: number): string => {
   if (seconds < 60) return `${seconds}s`;
@@ -247,7 +244,10 @@ const logStartupInfo = () => {
 
   // Security & Access
   logSection('SECURITY & ACCESS', '🔐', () => {
-    logKeyValue('Password Protected:', Env.ADDON_PASSWORD ? '✅ YES' : '❌ NO');
+    logKeyValue(
+      'Password Protected:',
+      Env.ADDON_PASSWORD.length ? '✅ YES' : '❌ NO'
+    );
     logKeyValue('Secret Key:', Env.SECRET_KEY ? '✅ Configured' : '❌ Not set');
     logKeyValue('Regex Access:', Env.REGEX_FILTER_ACCESS.toUpperCase());
 

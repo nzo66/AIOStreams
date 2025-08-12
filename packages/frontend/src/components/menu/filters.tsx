@@ -173,6 +173,7 @@ function Content() {
   const { status } = useStatus();
   const previousTab = useRef(tab);
   const { userData, setUserData } = useUserData();
+  const allowedRegexModal = useDisclosure(false);
   useEffect(() => {
     if (tab !== previousTab.current) {
       previousTab.current = tab;
@@ -1141,40 +1142,6 @@ function Content() {
                     }}
                   />
 
-                  <Switch
-                    label="Match Year"
-                    side="right"
-                    disabled={!userData.titleMatching?.enabled}
-                    value={userData.titleMatching?.matchYear ?? false}
-                    onValueChange={(value) => {
-                      setUserData((prev) => ({
-                        ...prev,
-                        titleMatching: {
-                          ...prev.titleMatching,
-                          matchYear: value,
-                        },
-                      }));
-                    }}
-                  />
-
-                  <NumberInput
-                    label="Year Tolerance"
-                    disabled={!userData.titleMatching?.matchYear}
-                    value={userData.titleMatching?.yearTolerance ?? 1}
-                    onValueChange={(value) => {
-                      setUserData((prev) => ({
-                        ...prev,
-                        titleMatching: {
-                          ...prev.titleMatching,
-                          yearTolerance: value,
-                        },
-                      }));
-                    }}
-                    min={0}
-                    max={100}
-                    help="The number of years to tolerate when matching years. For example, if the year tolerance is 5, then a stream with a year of 2020 will match a request for 2025."
-                  />
-
                   <Select
                     disabled={!userData.titleMatching?.enabled}
                     label="Matching Mode"
@@ -1241,6 +1208,93 @@ function Content() {
                             ...prev,
                             titleMatching: {
                               ...prev.titleMatching,
+                              addons: value,
+                            },
+                          }));
+                        }}
+                      />
+                    </div>
+                  </div>
+                </SettingsCard>
+
+                <SettingsCard
+                  title="Year Matching"
+                  description="Any streams which don't specifically match the requested year will be filtered out. You can optionally choose to only apply it to specific request types and addons"
+                >
+                  <Switch
+                    label="Enable"
+                    side="right"
+                    value={userData.yearMatching?.enabled ?? false}
+                    onValueChange={(value) => {
+                      setUserData((prev) => ({
+                        ...prev,
+                        yearMatching: {
+                          ...prev.yearMatching,
+                          enabled: value,
+                        },
+                      }));
+                    }}
+                  />
+
+                  <NumberInput
+                    label="Year Tolerance"
+                    disabled={!userData.yearMatching?.enabled}
+                    value={userData.yearMatching?.tolerance ?? 1}
+                    onValueChange={(value) => {
+                      setUserData((prev) => ({
+                        ...prev,
+                        yearMatching: {
+                          ...prev.yearMatching,
+                          tolerance: value,
+                        },
+                      }));
+                    }}
+                    min={0}
+                    max={100}
+                    help="The number of years to tolerate when matching years. For example, if the year tolerance is 5, then a stream with a year of 2020 will match a request for 2025."
+                  />
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Combobox
+                        multiple
+                        disabled={!userData.yearMatching?.enabled}
+                        label="Request Types"
+                        emptyMessage="There aren't any request types to choose from..."
+                        help="Request types that will use year matching. Leave blank to apply to all request types."
+                        options={TYPES.map((type) => ({
+                          label: type,
+                          value: type,
+                          textValue: type,
+                        }))}
+                        value={userData.yearMatching?.requestTypes}
+                        onValueChange={(value) => {
+                          setUserData((prev) => ({
+                            ...prev,
+                            yearMatching: {
+                              ...prev.yearMatching,
+                              requestTypes: value,
+                            },
+                          }));
+                        }}
+                      />
+                      <Combobox
+                        multiple
+                        disabled={!userData.yearMatching?.enabled}
+                        label="Addons"
+                        help="Addons that will use year matching. Leave blank to apply to all addons."
+                        emptyMessage="You haven't installed any addons yet..."
+                        options={userData.presets.map((preset) => ({
+                          label: preset.options.name || preset.type,
+                          textValue: preset.options.name || preset.type,
+                          value: preset.instanceId,
+                        }))}
+                        value={userData.yearMatching?.addons || []}
+                        onValueChange={(value) => {
+                          setUserData((prev) => ({
+                            ...prev,
+                            yearMatching: {
+                              ...prev.yearMatching,
                               addons: value,
                             },
                           }));
@@ -1640,7 +1694,7 @@ function Content() {
                     }
                   />
                 )}
-                {status?.settings.allowedRegexPatterns && (
+                {status?.settings.allowedRegexPatterns?.patterns.length && (
                   <Alert
                     intent="info"
                     title="Allowed Regex Patterns"
@@ -1650,12 +1704,27 @@ function Content() {
                           This instance has allowed a specific set of regexes to
                           be used by all users.
                         </p>
-                        <p>
-                          <MarkdownLite>
-                            {status?.settings.allowedRegexPatterns
-                              .description || ''}
-                          </MarkdownLite>
-                        </p>
+                        <br />
+                        {status?.settings.allowedRegexPatterns.description ? (
+                          <>
+                            <p>
+                              <MarkdownLite>
+                                {status?.settings.allowedRegexPatterns
+                                  .description || ''}
+                              </MarkdownLite>
+                            </p>
+                            <br />
+                          </>
+                        ) : (
+                          <></>
+                        )}
+                        <Button
+                          intent="primary-outline"
+                          size="sm"
+                          onClick={allowedRegexModal.open}
+                        >
+                          View Allowed Patterns
+                        </Button>
                       </>
                     }
                   />
@@ -2168,6 +2237,43 @@ function Content() {
           </TabsContent>
         </div>
       </Tabs>
+
+      {/* Modal for Allowed Regex Patterns */}
+      <Modal
+        open={allowedRegexModal.isOpen}
+        onOpenChange={allowedRegexModal.close}
+        title="Allowed Regex Patterns"
+      >
+        <div className="space-y-4">
+          {status?.settings.allowedRegexPatterns?.description && (
+            <div className="text-sm text-muted-foreground">
+              <MarkdownLite>
+                {status.settings.allowedRegexPatterns.description}
+              </MarkdownLite>
+            </div>
+          )}
+          <div className="border rounded-md bg-gray-900 border-gray-800 p-4 max-h-96 overflow-auto">
+            <div className="space-y-2">
+              {status?.settings.allowedRegexPatterns?.patterns.map(
+                (pattern, index) => (
+                  <div
+                    key={index}
+                    className="font-mono text-sm bg-gray-800 rounded px-3 py-2 break-all whitespace-pre-wrap"
+                  >
+                    {pattern}
+                  </div>
+                )
+              )}
+              {(!status?.settings.allowedRegexPatterns?.patterns ||
+                status.settings.allowedRegexPatterns.patterns.length === 0) && (
+                <div className="text-muted-foreground text-sm text-center">
+                  No allowed regex patterns configured
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }

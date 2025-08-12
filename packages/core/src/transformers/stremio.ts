@@ -82,15 +82,13 @@ export class StremioTransformer {
       streams.map(async (stream: ParsedStream): Promise<AIOStream> => {
         const { name, description } = stream.addon.streamPassthrough
           ? {
-              name: stream.originalName,
+              name: stream.originalName || stream.addon.name,
               description: stream.originalDescription,
             }
           : formatter.format(stream);
         const identifyingAttributes = [
           Env.ADDON_ID,
-          stream.addon.name,
           stream.service?.id,
-          stream.library,
           stream.proxied,
           stream.parsedFile?.resolution,
           stream.parsedFile?.quality,
@@ -105,7 +103,6 @@ export class StremioTransformer {
             ? stream.parsedFile?.languages
             : undefined,
           stream.parsedFile?.releaseGroup,
-          stream.indexer,
         ].filter(Boolean);
         const bingeGroup = `${identifyingAttributes.join('|')}`;
         return {

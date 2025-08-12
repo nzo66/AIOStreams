@@ -392,6 +392,14 @@ export const UserDataSchema = z.object({
   showStatistics: z.boolean().optional(),
   statisticsPosition: z.enum(['top', 'bottom']).optional(),
   tmdbAccessToken: z.string().optional(),
+  yearMatching: z
+    .object({
+      enabled: z.boolean().optional(),
+      tolerance: z.number().min(0).max(100).optional(),
+      requestTypes: z.array(z.string()).optional(),
+      addons: z.array(z.string()).optional(),
+    })
+    .optional(),
   titleMatching: z
     .object({
       mode: z.enum(['exact', 'contains']).optional(),
