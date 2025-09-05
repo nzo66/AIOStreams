@@ -54,9 +54,12 @@ export class IMDBMetadata {
     }
   }
 
-  private async getImdbSuggestionData(id: string, type: string) {
+  private async getImdbSuggestionData(
+    id: string,
+    type: string
+  ): Promise<Metadata> {
     const key = `${id}:${type}`;
-    const cached = this.titleCache.get(key);
+    const cached = await this.titleCache.get(key);
     if (cached) {
       return cached;
     }

@@ -27,7 +27,7 @@ const manifest = async (config?: UserData): Promise<Manifest> => {
   let resources: Manifest['resources'] = [];
   let addonCatalogs: Manifest['addonCatalogs'] = [];
   if (config) {
-    const aiostreams = new AIOStreams(config, true);
+    const aiostreams = new AIOStreams(config, { skipFailedAddons: true });
 
     await aiostreams.initialise();
 

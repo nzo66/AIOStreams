@@ -1,7 +1,8 @@
-import { BaseFormatter, FormatterConfig } from './base';
+import { UserData } from '../db';
+import { BaseFormatter } from './base';
 
 export class TorrentioFormatter extends BaseFormatter {
-  constructor(addonName?: string) {
+  constructor(userData: UserData) {
     super(
       {
         name: `
@@ -13,16 +14,16 @@ export class TorrentioFormatter extends BaseFormatter {
 {stream.folderName::exists["{stream.folderName}"||""]}
 {stream.filename::exists["{stream.filename}"||""]}
 {stream.size::>0["💾{stream.size::bytes2} "||""]}{stream.folderSize::>0["/ 💾{stream.folderSize::bytes2}"||""]}{stream.seeders::>=0["👤{stream.seeders} "||""]}{stream.age::exists["📅{stream.age} "||""]}{stream.indexer::exists["⚙️{stream.indexer}"||""]}
-{stream.languageEmojis::exists["{stream.languageEmojis::join( / ')}"||""]}
+{stream.languageEmojis::exists["{stream.languageEmojis::join(' / ')}"||""]}
 `,
       },
-      addonName
+      userData
     );
   }
 }
 
 export class TorboxFormatter extends BaseFormatter {
-  constructor(addonName?: string) {
+  constructor(userData: UserData) {
     super(
       {
         name: `
@@ -37,13 +38,13 @@ Type: {stream.type::title}{stream.seeders::>=0[" | Seeders: {stream.seeders}"||"
 {stream.message::exists["Message: {stream.message}"||""]}
       `,
       },
-      addonName
+      userData
     );
   }
 }
 
 export class GDriveFormatter extends BaseFormatter {
-  constructor(addonName?: string) {
+  constructor(userData: UserData) {
     super(
       {
         name: `
@@ -58,13 +59,13 @@ export class GDriveFormatter extends BaseFormatter {
 {stream.message::exists["ℹ️ {stream.message}"||""]}
       `,
       },
-      addonName
+      userData
     );
   }
 }
 
 export class LightGDriveFormatter extends BaseFormatter {
-  constructor(addonName?: string) {
+  constructor(userData: UserData) {
     super(
       {
         name: `
@@ -79,19 +80,19 @@ export class LightGDriveFormatter extends BaseFormatter {
 {stream.languageEmojis::exists["🌐 {stream.languageEmojis::join(' / ')}"||""]}
 `,
       },
-      addonName
+      userData
     );
   }
 }
 
 export class MinimalisticGdriveFormatter extends BaseFormatter {
-  constructor(addonName?: string) {
+  constructor(userData: UserData) {
     super(
       {
         name: '{stream.title} {stream.quality}',
         description: '{stream.size::bytes} {stream.seeders} seeders',
       },
-      addonName
+      userData
     );
   }
 }

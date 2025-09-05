@@ -2,7 +2,11 @@ import { Addon, Option, ParsedStream, Stream, UserData } from '../db';
 import { Preset, baseOptions } from './preset';
 import { constants, Env } from '../utils';
 import { FileParser, StreamParser } from '../parser';
-import { debridioSocialOption } from './debridio';
+import {
+  debridioSocialOption,
+  debridioApiKeyOption,
+  debridioLogo,
+} from './debridio';
 
 class DebridioWatchtowerStreamParser extends StreamParser {
   parse(stream: Stream): ParsedStream {
@@ -63,21 +67,14 @@ export class DebridioWatchtowerPreset extends Preset {
         supportedResources,
         Env.DEFAULT_DEBRIDIO_WATCHTOWER_TIMEOUT
       ),
-      {
-        id: 'debridioApiKey',
-        name: 'Debridio API Key',
-        description:
-          'Your Debridio API Key, located at your [account settings](https://debridio.com/account)',
-        type: 'password',
-        required: true,
-      },
+      debridioApiKeyOption,
       debridioSocialOption,
     ];
 
     return {
       ID: 'debridio-watchtower',
       NAME: 'Debridio Watchtower',
-      LOGO: 'https://res.cloudinary.com/adobotec/image/upload/w_120,h_120/v1735925306/debridio/logo.png.png',
+      LOGO: debridioLogo,
       URL: Env.DEBRIDIO_WATCHTOWER_URL,
       TIMEOUT: Env.DEFAULT_DEBRIDIO_WATCHTOWER_TIMEOUT || Env.DEFAULT_TIMEOUT,
       USER_AGENT:

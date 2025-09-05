@@ -3,8 +3,9 @@ import { baseOptions, Preset } from './preset';
 import { Env } from '../utils';
 import { constants, ServiceId } from '../utils';
 import { StreamParser } from '../parser';
+import { StremThruPreset, StremThruStreamParser } from './stremthru';
 
-class StremthruTorzStreamParser extends StreamParser {
+class StremthruTorzStreamParser extends StremThruStreamParser {
   protected override applyUrlModifications(
     url: string | undefined
   ): string | undefined {
@@ -30,61 +31,24 @@ class StremthruTorzStreamParser extends StreamParser {
       }
       return urlObj.toString();
     }
-    return url;
-  }
-
-  // ensure release groups aren't misidentified as indexers
-  protected override getIndexer(
-    stream: Stream,
-    currentParsedStream: ParsedStream
-  ): string | undefined {
-    return undefined;
-  }
-
-  protected override getFolderSize(
-    stream: Stream,
-    currentParsedStream: ParsedStream
-  ): number | undefined {
-    let folderSize = this.calculateBytesFromSizeString(
-      stream.description ?? '',
-      /📦\s*(\d+(\.\d+)?)\s?(KB|MB|GB|TB)/i
-    );
-    if (folderSize && currentParsedStream.size) {
-      if (
-        Math.abs(folderSize - currentParsedStream.size) <=
-        currentParsedStream.size * 0.05
-      ) {
-        return undefined;
-      }
-    }
-    return folderSize;
+    return super.applyUrlModifications(url);
   }
 }
 
-export class StremthruTorzPreset extends Preset {
+export class StremthruTorzPreset extends StremThruPreset {
   static override getParser(): typeof StreamParser {
     return StremthruTorzStreamParser;
   }
 
   static override get METADATA() {
-    const supportedServices: ServiceId[] = [
-      constants.REALDEBRID_SERVICE,
-      constants.PREMIUMIZE_SERVICE,
-      constants.ALLDEBRID_SERVICE,
-      constants.TORBOX_SERVICE,
-      constants.EASYDEBRID_SERVICE,
-      constants.DEBRIDLINK_SERVICE,
-      constants.OFFCLOUD_SERVICE,
-      constants.PIKPAK_SERVICE,
-    ];
-
     const supportedResources = [constants.STREAM_RESOURCE];
 
     const options: Option[] = [
       ...baseOptions(
         'StremThru Torz',
         supportedResources,
-        Env.DEFAULT_STREMTHRU_STORE_TIMEOUT
+        Env.DEFAULT_STREMTHRU_STORE_TIMEOUT,
+        Env.STREMTHRU_TORZ_URL
       ),
       {
         id: 'services',
@@ -93,7 +57,8 @@ export class StremthruTorzPreset extends Preset {
           'Optionally override the services that are used. If not specified, then the services that are enabled and supported will be used.',
         type: 'multi-select',
         required: false,
-        options: supportedServices.map((service) => ({
+        showInNoobMode: false,
+        options: StremThruPreset.supportedServices.map((service) => ({
           value: service,
           label: constants.SERVICE_DETAILS[service].name,
         })),
@@ -107,6 +72,7 @@ export class StremthruTorzPreset extends Preset {
           'Use this option when you want to include P2P results even when using a debrid service. If left unchecked, then P2P results will not be fetched when using a debrid service.',
         type: 'boolean',
         default: false,
+        showInNoobMode: false,
       },
       {
         id: 'useMultipleInstances',
@@ -115,20 +81,14 @@ export class StremthruTorzPreset extends Preset {
           'StremThru Torz supports multiple services in one instance of the addon - which is used by default. If this is enabled, then the addon will be created for each service.',
         type: 'boolean',
         default: false,
+        showInNoobMode: false,
       },
       {
         id: 'socials',
         name: '',
         description: '',
         type: 'socials',
-        socials: [
-          {
-            id: 'github',
-            url: 'https://github.com/MunifTanjim/stremthru',
-          },
-          { id: 'buymeacoffee', url: 'https://buymeacoffee.com/muniftanjim' },
-          { id: 'patreon', url: 'https://patreon.com/MunifTanjim' },
-        ],
+        socials: StremThruPreset.socialLinks,
       },
     ];
 
@@ -136,11 +96,11 @@ export class StremthruTorzPreset extends Preset {
       ID: 'stremthruTorz',
       NAME: 'StremThru Torz',
       LOGO: 'https://emojiapi.dev/api/v1/sparkles/256.png',
-      URL: Env.STREMTHRU_TORZ_URL,
+      URL: Env.STREMTHRU_TORZ_URL[0],
       TIMEOUT: Env.DEFAULT_STREMTHRU_TORZ_TIMEOUT || Env.DEFAULT_TIMEOUT,
       USER_AGENT:
         Env.DEFAULT_STREMTHRU_TORZ_USER_AGENT || Env.DEFAULT_USER_AGENT,
-      SUPPORTED_SERVICES: supportedServices,
+      SUPPORTED_SERVICES: StremThruPreset.supportedServices,
       DESCRIPTION:
         'Access a crowdsourced torrent library supplemented by DMM hashlists',
       OPTIONS: options,
@@ -300,13 +260,6 @@ export class StremthruTorzPreset extends Preset {
       return '';
     }
 
-    const credentialFormatters = {
-      [constants.OFFCLOUD_SERVICE]: (credentials: any) =>
-        `${credentials.email}:${credentials.password}`,
-      [constants.PIKPAK_SERVICE]: (credentials: any) =>
-        `${credentials.email}:${credentials.password}`,
-    };
-
-    return this.getServiceCredential(serviceId, userData, credentialFormatters);
+    return this.getServiceCredential(serviceId, userData);
   }
 }

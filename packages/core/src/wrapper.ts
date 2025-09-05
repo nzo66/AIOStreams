@@ -9,6 +9,7 @@ import {
   Manifest,
   ManifestSchema,
   Meta,
+  ParsedMeta,
   MetaPreview,
   MetaPreviewSchema,
   MetaResponse,
@@ -24,6 +25,7 @@ import {
   SubtitleResponse,
   SubtitleResponseSchema,
   SubtitleSchema,
+  ParsedMetaSchema,
 } from './db/schemas';
 import {
   Cache,
@@ -133,51 +135,61 @@ export class Wrapper {
   }
 
   async getManifest(): Promise<Manifest> {
-    return await manifestCache.wrap(
-      async () => {
-        logger.debug(
-          `Fetching manifest for ${this.addon.name} ${this.addon.displayIdentifier || this.addon.identifier} (${makeUrlLogSafe(this.manifestUrl)})`
-        );
-        try {
-          const res = await makeRequest(this.manifestUrl, {
-            timeout: Env.MANIFEST_TIMEOUT,
-            headers: this.addon.headers,
-            forwardIp: this.addon.ip,
-          });
-          if (!res.ok) {
-            throw new Error(`${res.status} - ${res.statusText}`);
-          }
-          const data = await res.json();
-          const manifest = ManifestSchema.safeParse(data);
-          if (!manifest.success) {
-            logger.error(`Manifest response was unexpected`);
-            logger.error(formatZodError(manifest.error));
-            logger.error(JSON.stringify(data, null, 2));
-            throw new Error(
-              `Manifest response could not be parsed: ${formatZodError(manifest.error)}`
-            );
-          }
-          return manifest.data;
-        } catch (error: any) {
-          logger.error(
-            `Failed to fetch manifest for ${this.getAddonName(this.addon)}: ${error.message}`
-          );
-          if (error instanceof PossibleRecursiveRequestError) {
-            throw error;
-          }
-          throw new Error(
-            `Failed to fetch manifest for ${this.getAddonName(this.addon)}: ${error.message}`
-          );
-        }
-      },
+    const cacheKey =
       this.preset.getCacheKey({
         resource: 'manifest',
         type: 'manifest',
         id: 'manifest',
         options: this.addon.preset.options,
-      }) || this.manifestUrl,
-      Env.MANIFEST_CACHE_TTL
-    );
+      }) || this.manifestUrl;
+
+    const requestFn = async (): Promise<Manifest> => {
+      logger.debug(
+        `Fetching manifest for ${this.addon.name} ${this.addon.displayIdentifier || this.addon.identifier} (${makeUrlLogSafe(this.manifestUrl)})`
+      );
+      try {
+        const backgroundTimeout =
+          Env.BACKGROUND_RESOURCE_REQUEST_TIMEOUT ?? Env.MAX_TIMEOUT;
+        const res = await makeRequest(this.manifestUrl, {
+          timeout: backgroundTimeout,
+          headers: this.addon.headers,
+          forwardIp: this.addon.ip,
+        });
+        if (!res.ok) {
+          throw new Error(`${res.status} - ${res.statusText}`);
+        }
+        const data = await res.json();
+        const manifest = ManifestSchema.safeParse(data);
+        if (!manifest.success) {
+          logger.error(`Manifest response was unexpected`);
+          logger.error(formatZodError(manifest.error));
+          logger.error(JSON.stringify(data, null, 2));
+          throw new Error(
+            `Manifest response could not be parsed: ${formatZodError(manifest.error)}`
+          );
+        }
+        return manifest.data;
+      } catch (error: any) {
+        logger.error(
+          `Failed to fetch manifest for ${this.getAddonName(this.addon)}: ${error.message}`
+        );
+        if (error instanceof PossibleRecursiveRequestError) {
+          throw error;
+        }
+        throw new Error(
+          `Failed to fetch manifest for ${this.getAddonName(this.addon)}: ${error.message}`
+        );
+      }
+    };
+
+    return this._request({
+      requestFn,
+      timeout: Env.MANIFEST_TIMEOUT,
+      resourceName: 'manifest',
+      cacher: manifestCache,
+      cacheKey,
+      cacheTtl: Env.MANIFEST_CACHE_TTL,
+    });
   }
 
   async getStreams(type: string, id: string): Promise<ParsedStream[]> {
@@ -236,7 +248,7 @@ export class Wrapper {
     );
   }
 
-  async getMeta(type: string, id: string): Promise<Meta> {
+  async getMeta(type: string, id: string): Promise<ParsedMeta> {
     const validator = (data: any): Meta => {
       const parsed = MetaSchema.safeParse(data.meta);
       if (!parsed.success) {
@@ -261,7 +273,20 @@ export class Wrapper {
         options: this.addon.preset.options,
       })
     );
-    return meta;
+    // parse streams in meta.videos.streams if present
+    const parser = new (this.preset.getParser())(this.addon);
+    if (meta.videos) {
+      meta.videos = meta.videos.map((video) => {
+        const parsedStreams = video.streams
+          ?.map((stream) => parser.parse(stream))
+          .filter((stream) => ('skip' in stream ? !stream.skip : true));
+        if (parsedStreams) {
+          video.streams = parsedStreams as ParsedStream[];
+        }
+        return video;
+      });
+    }
+    return ParsedMetaSchema.parse(meta);
   }
 
   async getSubtitles(
@@ -322,6 +347,75 @@ export class Wrapper {
     });
   }
 
+  private async _request<T>(options: {
+    requestFn: () => Promise<T>;
+    timeout: number;
+    resourceName: string;
+    cacher?: Cache<string, T>;
+    cacheKey: string;
+    cacheTtl: number;
+    shouldCache?: (data: T) => boolean;
+  }): Promise<T> {
+    const {
+      requestFn,
+      timeout,
+      resourceName,
+      cacher,
+      cacheKey,
+      cacheTtl,
+      shouldCache,
+    } = options;
+
+    if (cacher) {
+      const cached = await cacher.get(cacheKey);
+      if (cached) {
+        logger.debug(
+          `Returning cached ${resourceName} for ${this.getAddonName(this.addon)}`
+        );
+        return cached;
+      }
+    }
+
+    const processRequest = async () => {
+      const result = await requestFn();
+      const doCache = shouldCache ? shouldCache(result) : true;
+      if (cacher && doCache) {
+        await cacher.set(cacheKey, result, cacheTtl);
+      }
+      return result;
+    };
+
+    const requestPromise = processRequest();
+
+    const timeoutPromise = new Promise<T>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              `Request for ${resourceName} for ${this.getAddonName(this.addon)} timed out after ${timeout}ms`
+            )
+          ),
+        timeout
+      )
+    );
+
+    try {
+      return await Promise.race([requestPromise, timeoutPromise]);
+    } catch (error: any) {
+      if (error.message.includes('timed out')) {
+        logger.warn(
+          `Request for ${resourceName} for ${this.getAddonName(this.addon)} timed out. Will process in background.`
+        );
+        requestPromise.catch((bgError) => {
+          logger.warn(
+            `Background request for ${resourceName} for ${this.getAddonName(this.addon)} failed: ${bgError.message}`
+          );
+        });
+      }
+      throw error;
+    }
+  }
+
   private async makeResourceRequest<T>(
     resource: Resource,
     params: ResourceParams,
@@ -333,49 +427,52 @@ export class Wrapper {
   ) {
     const { type, id, extras } = params;
     const url = this.buildResourceUrl(resource, type, id, extras);
-    if (cacher) {
-      const cached = cacher.get(cacheKey || url);
+    const effectiveCacheKey = cacheKey || url;
 
-      if (cached) {
-        logger.info(
-          `Returning cached ${resource} for ${this.getAddonName(this.addon)} (${makeUrlLogSafe(url)})`
-        );
-        return cached;
-      }
-    }
     logger.info(
       `Fetching ${resource} of type ${type} with id ${id} and extras ${extras} (${makeUrlLogSafe(url)})`,
       {
         cacheKey: cacheKey ? makeUrlLogSafe(cacheKey) : undefined,
       }
     );
-    try {
-      const res = await makeRequest(url, {
-        timeout: timeout,
-        headers: this.addon.headers,
-        forwardIp: this.addon.ip,
-      });
-      if (!res.ok) {
+
+    const requestFn = async (): Promise<T> => {
+      try {
+        const backgroundTimeout =
+          Env.BACKGROUND_RESOURCE_REQUEST_TIMEOUT ?? Env.MAX_TIMEOUT;
+        const res = await makeRequest(url, {
+          timeout: backgroundTimeout,
+          headers: this.addon.headers,
+          forwardIp: this.addon.ip,
+        });
+
+        if (!res.ok) {
+          logger.error(
+            `Failed to fetch ${resource} resource for ${this.getAddonName(this.addon)}: ${res.status} - ${res.statusText}`
+          );
+          throw new Error(`${res.status} - ${res.statusText}`);
+        }
+
+        const data: unknown = await res.json();
+        return validator(data);
+      } catch (error: any) {
         logger.error(
-          `Failed to fetch ${resource} resource for ${this.getAddonName(this.addon)}: ${res.status} - ${res.statusText}`
+          `Failed to fetch ${resource} resource for ${this.getAddonName(this.addon)}: ${error.message}`
         );
-
-        throw new Error(`${res.status} - ${res.statusText}`);
+        throw error;
       }
-      const data: unknown = await res.json();
+    };
 
-      const validated = validator(data);
-
-      if (cacher) {
-        cacher.set(cacheKey || url, validated, cacheTtl);
-      }
-      return validated;
-    } catch (error: any) {
-      logger.error(
-        `Failed to fetch ${resource} resource for ${this.getAddonName(this.addon)}: ${error.message}`
-      );
-      throw error;
-    }
+    return this._request({
+      requestFn,
+      timeout,
+      resourceName: resource,
+      cacher,
+      cacheKey: effectiveCacheKey,
+      cacheTtl,
+      shouldCache: (data: T) =>
+        resource !== 'stream' || (Array.isArray(data) && data.length > 0),
+    });
   }
 
   private buildResourceUrl(

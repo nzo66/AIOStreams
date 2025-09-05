@@ -31,17 +31,28 @@ export class KitsuMetadata {
       throw new Error('Kitsu metadata is missing title or year');
     }
 
-    let season: number | undefined;
-    const aliasesParse = z.array(z.string()).safeParse((meta as any).aliases);
-    if (aliasesParse.success) {
-      season = aliasesParse.data
-        .map((alias) => alias.match(/Season (\d+)/i))
-        .filter((match) => match !== null)
-        .map((match) => match![1])
-        .map(Number)
-        .find((s) => !isNaN(s));
+    let season: number | undefined = undefined;
+
+    if (meta.videos?.[0]?.imdbSeason) {
+      season = Number(meta.videos[0].imdbSeason);
     }
-    if (!season && z.string().safeParse(meta.slug).success) {
+
+    if (season === undefined) {
+      const aliasesParse = z.array(z.string()).safeParse((meta as any).aliases);
+      if (aliasesParse.success) {
+        const found = aliasesParse.data
+          .map((alias) => alias.match(/Season (\d+)/i))
+          .filter((match) => match !== null)
+          .map((match) => match![1])
+          .map(Number)
+          .find((s) => !isNaN(s));
+        if (found !== undefined) {
+          season = found;
+        }
+      }
+    }
+
+    if (season === undefined && z.string().safeParse(meta.slug).success) {
       const seasonMatch = z
         .string()
         .parse(meta.slug)

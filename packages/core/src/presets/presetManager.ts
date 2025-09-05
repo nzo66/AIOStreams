@@ -9,7 +9,7 @@ import { EasynewsPreset } from './easynews';
 import { EasynewsPlusPreset } from './easynewsPlus';
 import { EasynewsPlusPlusPreset } from './easynewsPlusPlus';
 import { StremthruTorzPreset } from './stremthruTorz';
-import { DebridioPreset } from './debridio';
+import { DebridioPreset } from './debridioScraper';
 import { AIOStreamsPreset } from './aiostreams';
 import { OpenSubtitlesPreset } from './opensubtitles';
 import { PeerflixPreset } from './peerflix';
@@ -49,8 +49,10 @@ import { MoreLikeThisPreset } from './moreLikeThis';
 import { GDriveAPI } from '../builtins/gdrive';
 import { GDrivePreset } from './gdrive';
 import { ContentDeepDivePreset } from './contentDeepDive';
+import { AICompanionPreset } from './aiCompanion';
 import { GoogleOAuth } from '../builtins/gdrive/api';
 import { TorBoxSearchPreset } from './torboxSearch';
+import { AStreamPreset } from './aStream';
 import { Env } from '../utils/env';
 
 let PRESET_LIST: string[] = [
@@ -75,6 +77,7 @@ let PRESET_LIST: string[] = [
   'dmm-cast',
   'nuvio-streams',
   'webstreamr',
+  'astream',
   'streamasia',
   Env.BUILTIN_GDRIVE_CLIENT_ID && Env.BUILTIN_GDRIVE_CLIENT_SECRET
     ? 'stremio-gdrive'
@@ -83,7 +86,6 @@ let PRESET_LIST: string[] = [
   'argentina-tv',
   'debridio-tv',
   'debridio-watchtower',
-  'ai-search',
   'tmdb-addon',
   'debridio-tmdb',
   'debridio-tvdb',
@@ -103,6 +105,8 @@ let PRESET_LIST: string[] = [
   'subdl',
   'subhero',
   'aiosubtitle',
+  'ai-companion',
+  'ai-search',
   'more-like-this',
   'content-deep-dive',
   'aiostreams',
@@ -182,6 +186,8 @@ export class PresetManager {
         return NuvioStreamsPreset;
       case 'webstreamr':
         return WebStreamrPreset;
+      case 'astream':
+        return AStreamPreset;
       case 'streaming-catalogs':
         return StreamingCatalogsPreset;
       case 'anime-catalogs':
@@ -224,6 +230,8 @@ export class PresetManager {
         return MoreLikeThisPreset;
       case 'content-deep-dive':
         return ContentDeepDivePreset;
+      case 'ai-companion':
+        return AICompanionPreset;
       case 'stremio-gdrive':
         return GDrivePreset;
       case 'torbox-search':

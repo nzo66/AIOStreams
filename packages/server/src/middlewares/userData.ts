@@ -78,7 +78,7 @@ export const userDataMiddleware = async (
         );
         return;
       }
-      next(new APIError(constants.ErrorCode.USER_ERROR));
+      next(new APIError(constants.ErrorCode.ENCRYPTION_ERROR));
       return;
     }
 

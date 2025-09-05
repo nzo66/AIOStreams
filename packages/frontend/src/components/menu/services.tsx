@@ -35,7 +35,7 @@ import { PageControls } from '../shared/page-controls';
 import { SettingsCard } from '../shared/settings-card';
 import { TextInput } from '../ui/text-input';
 import { PasswordInput } from '../ui/password-input';
-
+import { StatusResponse, UserData } from '@aiostreams/core';
 export function ServicesMenu() {
   return (
     <>
@@ -153,7 +153,7 @@ function Content() {
         services: [...filtered, ...toAdd],
       }));
     }
-  }, [status.settings.services]);
+  }, [status.settings.services, userData.services]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -268,7 +268,10 @@ function Content() {
                   </li>
                 ) : (
                   userData.services?.map((service, idx) => {
-                    const svcMeta = status.settings.services[service.id]!;
+                    const svcMeta = status.settings.services[service.id] as
+                      | StatusResponse['settings']['services'][ServiceId]
+                      | undefined;
+                    if (!svcMeta) return null;
                     return (
                       <SortableServiceItem
                         key={service.id}
@@ -353,11 +356,8 @@ function Content() {
 
       <SettingsCard
         title="TMDB"
-        description={`Provide your TMDB Read Access Token to use some features of AIOStreams. This instance ${
-          status?.settings.tmdbApiAvailable ? 'has' : 'does not have'
-        } a default TMDB Access token set so you ${
-          status?.settings.tmdbApiAvailable ? 'do not have to' : 'have to'
-        } set one here. It is used for title matching and recommended for precaching to be able to determine when to move to the next season.`}
+        description={`Optionally provide your TMDB API Key and Read Access Token here. AIOStreams only needs one of them for title matching and its recommended and precaching to be able to
+           determine when to move to the next season. Some addons in the marketplace will require one or the other too.`}
       >
         <PasswordInput
           label="TMDB Read Access Token"
@@ -371,8 +371,10 @@ function Content() {
                   className="text-[--brand] hover:underline"
                   rel="noopener noreferrer"
                 >
-                  TMDB Account Settings
+                  TMDB Account Settings.{' '}
                 </a>
+                Make sure to copy the Read Access Token and not the 32 character
+                API Key.
               </p>
               <p></p>
             </>
@@ -384,6 +386,33 @@ function Content() {
             setUserData((prev) => ({
               ...prev,
               tmdbAccessToken: value,
+            }));
+          }}
+        />
+
+        <PasswordInput
+          label="TMDB API Key"
+          help={
+            <span>
+              You can get it from your{' '}
+              <a
+                href="https://www.themoviedb.org/settings/api"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[--brand] hover:underline"
+              >
+                TMDB Account Settings.{' '}
+              </a>
+              Make sure to copy the 32 character API Key and not the Read Access
+              Token.
+            </span>
+          }
+          placeholder="Enter your TMDB API Key"
+          value={userData.tmdbApiKey}
+          onValueChange={(value) => {
+            setUserData((prev) => ({
+              ...prev,
+              tmdbApiKey: value,
             }));
           }}
         />
@@ -408,8 +437,8 @@ function SortableServiceItem({
   onEdit,
   onToggleEnabled,
 }: {
-  service: any;
-  meta: any;
+  service: Exclude<UserData['services'], undefined>[number];
+  meta: Exclude<StatusResponse['settings']['services'][ServiceId], undefined>;
   onEdit: () => void;
   onToggleEnabled: (v: boolean) => void;
 }) {
@@ -426,7 +455,7 @@ function SortableServiceItem({
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
-  const disableEdit = meta.credentials.every((cred: any) => {
+  const disableEdit = meta.credentials.every((cred) => {
     return cred.forced;
   });
   return (

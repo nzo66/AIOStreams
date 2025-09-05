@@ -118,6 +118,7 @@ export class TorrentsDbPreset extends Preset {
       constants.ALLDEBRID_SERVICE,
       constants.TORBOX_SERVICE,
       constants.EASYDEBRID_SERVICE,
+      constants.DEBRIDER_SERVICE,
       constants.PUTIO_SERVICE,
       constants.DEBRIDLINK_SERVICE,
       constants.OFFCLOUD_SERVICE,
@@ -146,6 +147,7 @@ export class TorrentsDbPreset extends Preset {
           (provider) => provider.value
         ),
         emptyIsUndefined: true,
+        showInNoobMode: false,
       },
       {
         id: 'services',
@@ -160,6 +162,7 @@ export class TorrentsDbPreset extends Preset {
         })),
         default: undefined,
         emptyIsUndefined: true,
+        showInNoobMode: false,
       },
       {
         id: 'includeP2P',
@@ -169,6 +172,7 @@ export class TorrentsDbPreset extends Preset {
         type: 'boolean',
         default: false,
         required: false,
+        showInNoobMode: false,
       },
       {
         id: 'useMultipleInstances',
@@ -178,6 +182,7 @@ export class TorrentsDbPreset extends Preset {
         type: 'boolean',
         default: false,
         required: true,
+        showInNoobMode: false,
       },
     ];
 
@@ -319,6 +324,9 @@ export class TorrentsDbPreset extends Preset {
         : undefined,
       easydebrid: services.includes(constants.EASYDEBRID_SERVICE)
         ? this.getServiceCredential(constants.EASYDEBRID_SERVICE, userData)
+        : undefined,
+      debrider: services.includes(constants.DEBRIDER_SERVICE)
+        ? this.getServiceCredential(constants.DEBRIDER_SERVICE, userData)
         : undefined,
     });
     return `${url}${configString ? '/' + configString : ''}/manifest.json`;

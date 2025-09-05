@@ -163,6 +163,18 @@ class StreamFetcher {
       this.userData.groups.length > 0 &&
       this.userData.disableGroups !== true
     ) {
+      // add addons that are not assigned to any group to the first group
+      const unassignedAddons = addons.filter(
+        (addon) =>
+          !this.userData.groups!.some((group) =>
+            group.addons.includes(addon.preset.id)
+          )
+      );
+      if (unassignedAddons.length > 0) {
+        this.userData.groups[0].addons.push(
+          ...unassignedAddons.map((addon) => addon.preset.id)
+        );
+      }
       const groupPromises = this.userData.groups.map((group) => {
         const groupAddons = addons.filter(
           (addon) => addon.preset.id && group.addons.includes(addon.preset.id)

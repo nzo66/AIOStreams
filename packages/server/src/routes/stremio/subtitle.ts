@@ -10,7 +10,7 @@ const router = Router();
 router.use(stremioSubtitleRateLimiter);
 
 router.get(
-  '/:type/:id/:extras?.json',
+  '/:type/:id{/:extras}.json',
   async (req: Request, res: Response<SubtitleResponse>, next) => {
     if (!req.userData) {
       res.status(200).json(

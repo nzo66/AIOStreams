@@ -1,25 +1,26 @@
+import { UserData } from '../db';
 import { BaseFormatter, FormatterConfig } from './base';
 
 export class CustomFormatter extends BaseFormatter {
   constructor(
     nameTemplate: string,
     descriptionTemplate: string,
-    addonName?: string
+    userData: UserData
   ) {
     super(
       {
         name: nameTemplate,
         description: descriptionTemplate,
       },
-      addonName
+      userData
     );
   }
 
   public static fromConfig(
     config: FormatterConfig,
-    addonName: string | undefined
+    userData: UserData
   ): CustomFormatter {
-    return new CustomFormatter(config.name, config.description, addonName);
+    return new CustomFormatter(config.name, config.description, userData);
   }
 
   public updateTemplate(

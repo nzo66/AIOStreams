@@ -34,51 +34,72 @@ import { Env, ServiceId, constants } from '../utils';
 export const baseOptions = (
   name: string,
   resources: Resource[],
-  timeout: number = Env.DEFAULT_TIMEOUT
-): Option[] => [
-  {
-    id: 'name',
-    name: 'Name',
-    description: 'What to call this addon',
-    type: 'string',
-    required: true,
-    default: name,
-  },
-  {
-    id: 'timeout',
-    name: 'Timeout',
-    description: 'The timeout for this addon',
-    type: 'number',
-    required: true,
-    default: timeout,
-    constraints: {
-      min: Env.MIN_TIMEOUT,
-      max: Env.MAX_TIMEOUT,
-    },
-  },
-  {
-    id: 'resources',
-    name: 'Resources',
-    description: 'Optionally override the resources to use ',
-    type: 'multi-select',
-    required: false,
-    default: resources,
-    options: resources.map((resource) => ({
-      label: resource,
-      value: resource,
-    })),
-  },
-  {
+  timeout: number = Env.DEFAULT_TIMEOUT,
+  baseUrls?: readonly string[]
+): Option[] => {
+  const urlOption: Option = {
     id: 'url',
     name: 'URL',
     description:
       'Optionally override either the manifest generated, or override the base url used when generating the manifests',
     type: 'url',
     required: false,
-    emptyIsUndefined: true,
+    showInNoobMode: false,
     default: undefined,
-  },
-];
+  };
+  if (baseUrls && baseUrls.length > 1) {
+    urlOption.default = 'undefined';
+    urlOption.type = 'select-with-custom';
+    urlOption.options = [
+      {
+        label: baseUrls[0],
+        value: 'undefined',
+      },
+      ...baseUrls.slice(1).map((url) => ({
+        label: url,
+        value: url,
+      })),
+    ];
+    urlOption.showInNoobMode = true;
+  }
+  return [
+    {
+      id: 'name',
+      name: 'Name',
+      description: 'What to call this addon',
+      type: 'string',
+      required: true,
+      default: name,
+    },
+    {
+      id: 'timeout',
+      name: 'Timeout',
+      description: 'The timeout for this addon',
+      type: 'number',
+      required: true,
+      default: timeout,
+      constraints: {
+        min: Env.MIN_TIMEOUT,
+        max: Env.MAX_TIMEOUT,
+        forceInUi: false, // large ranges don't work well
+      },
+    },
+    {
+      id: 'resources',
+      name: 'Resources',
+      description: 'Optionally override the resources to use ',
+      type: 'multi-select',
+      required: false,
+      showInNoobMode: false,
+      default: resources,
+      options: resources.map((resource) => ({
+        label: resource,
+        value: resource,
+      })),
+    },
+    urlOption,
+  ];
+};
 
 export interface CacheKeyRequestOptions {
   resource: Resource | 'manifest';

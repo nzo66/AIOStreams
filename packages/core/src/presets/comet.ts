@@ -3,8 +3,18 @@ import { baseOptions, Preset } from './preset';
 import { Env } from '../utils';
 import { constants, ServiceId } from '../utils';
 import { StreamParser } from '../parser';
+import { StremThruPreset } from './stremthru';
 
 class CometStreamParser extends StreamParser {
+  get errorRegexes(): { pattern: RegExp; message: string }[] | undefined {
+    return [
+      ...(super.errorRegexes || []),
+      {
+        pattern: /Scraping in progress by another instance\./i,
+        message: 'Scraping in progress by another instance',
+      },
+    ];
+  }
   override applyUrlModifications(url: string | undefined): string | undefined {
     if (!url) {
       return url;
@@ -28,11 +38,11 @@ class CometStreamParser extends StreamParser {
       }
       return urlObj.toString();
     }
-    return url;
+    return super.applyUrlModifications(url);
   }
 }
 
-export class CometPreset extends Preset {
+export class CometPreset extends StremThruPreset {
   static override getParser(): typeof StreamParser {
     return CometStreamParser;
   }
@@ -44,6 +54,7 @@ export class CometPreset extends Preset {
       constants.ALLDEBRID_SERVICE,
       constants.TORBOX_SERVICE,
       constants.EASYDEBRID_SERVICE,
+      constants.DEBRIDER_SERVICE,
       constants.DEBRIDLINK_SERVICE,
       constants.OFFCLOUD_SERVICE,
       constants.PIKPAK_SERVICE,
@@ -52,13 +63,19 @@ export class CometPreset extends Preset {
     const supportedResources = [constants.STREAM_RESOURCE];
 
     const options: Option[] = [
-      ...baseOptions('Comet', supportedResources, Env.DEFAULT_COMET_TIMEOUT),
+      ...baseOptions(
+        'Comet',
+        supportedResources,
+        Env.DEFAULT_COMET_TIMEOUT,
+        Env.COMET_URL
+      ),
       {
         id: 'includeP2P',
         name: 'Include P2P',
         description: 'Include P2P results, even if a debrid service is enabled',
         type: 'boolean',
         default: false,
+        showInNoobMode: false,
       },
       {
         id: 'removeTrash',
@@ -67,10 +84,12 @@ export class CometPreset extends Preset {
           'Remove all trash from results (Adult Content, CAM, Clean Audio, PDTV, R5, Screener, Size, Telecine and Telesync)',
         type: 'boolean',
         default: true,
+        showInNoobMode: false,
       },
       {
         id: 'services',
         name: 'Services',
+        showInNoobMode: false,
         description:
           'Optionally override the services that are used. If not specified, then the services that are enabled and supported will be used.',
         type: 'multi-select',
@@ -104,7 +123,7 @@ export class CometPreset extends Preset {
       ID: 'comet',
       NAME: 'Comet',
       LOGO: 'https://i.imgur.com/jmVoVMu.jpeg',
-      URL: Env.COMET_URL,
+      URL: Env.COMET_URL[0],
       TIMEOUT: Env.DEFAULT_COMET_TIMEOUT || Env.DEFAULT_TIMEOUT,
       USER_AGENT: Env.DEFAULT_COMET_USER_AGENT || Env.DEFAULT_USER_AGENT,
       SUPPORTED_SERVICES: supportedServices,
@@ -190,12 +209,7 @@ export class CometPreset extends Preset {
       resultFormat: ['all'],
       debridService: serviceId || 'torrent',
       debridApiKey: serviceId
-        ? this.getServiceCredential(serviceId, userData, {
-            [constants.OFFCLOUD_SERVICE]: (credentials: any) =>
-              `${credentials.email}:${credentials.password}`,
-            [constants.PIKPAK_SERVICE]: (credentials: any) =>
-              `${credentials.email}:${credentials.password}`,
-          })
+        ? this.getServiceCredential(serviceId, userData)
         : '',
       debridStreamProxyPassword: '',
       languages: { required: [], exclude: [], preferred: [] },

@@ -11,7 +11,7 @@ const router = Router();
 router.use(stremioCatalogRateLimiter);
 
 router.get(
-  '/:type/:id/:extras?.json',
+  '/:type/:id{/:extras}.json',
   async (req: Request, res: Response<CatalogResponse>, next) => {
     const transformer = new StremioTransformer(req.userData);
     if (!req.userData) {

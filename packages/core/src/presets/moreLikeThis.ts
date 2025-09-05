@@ -1,7 +1,17 @@
 import { Addon, Option, ParsedStream, Stream, UserData } from '../db';
 import { Preset, baseOptions } from './preset';
-import { constants, Env } from '../utils';
+import {
+  Cache,
+  constants,
+  Env,
+  getSimpleTextHash,
+  makeRequest,
+} from '../utils';
 import { StreamParser } from '../parser';
+
+const moreLikeThisManifests = Cache.getInstance<string, string>(
+  'moreLikeThisManifests'
+);
 
 class MoreLikeThisStreamParser extends StreamParser {
   protected getFilename(
@@ -10,7 +20,6 @@ class MoreLikeThisStreamParser extends StreamParser {
   ): string | undefined {
     return undefined;
   }
-
   protected getMessage(
     stream: Stream,
     currentParsedStream: ParsedStream
@@ -37,25 +46,23 @@ export class MoreLikeThisPreset extends Preset {
         supportedResources,
         Env.DEFAULT_MORE_LIKE_THIS_TIMEOUT
       ),
-      {
-        id: 'tmdbApiKey',
-        name: 'TMDB API Key',
-        description:
-          'Get a free key from [TMDB](https://www.themoviedb.org/settings/api)',
-        type: 'password',
-        constraints: {
-          min: 10,
-        },
-      },
+      // @deprecated TMDB API Key is now handled in the services menu
+      // {
+      //   id: 'tmdbApiKey',
+      //   name: 'TMDB API Key',
+      //   description:
+      //     'Get a free key from [TMDB](https://www.themoviedb.org/settings/api)',
+      //   type: 'password',
+      //   constraints: {
+      //     min: 10,
+      //   },
+      // },
       {
         id: 'traktApiKey',
         name: 'Trakt API Key',
         description:
           'Get a free key from [Trakt](https://trakt.tv/oauth/applications)',
         type: 'password',
-        constraints: {
-          min: 10,
-        },
       },
       {
         id: 'geminiApiKey',
@@ -63,9 +70,6 @@ export class MoreLikeThisPreset extends Preset {
         description:
           'Get a free key from [Google AI Studio](https://makersuite.google.com/app/apikey)',
         type: 'password',
-        constraints: {
-          min: 10,
-        },
       },
       {
         id: 'tasteDiveApiKey',
@@ -73,9 +77,13 @@ export class MoreLikeThisPreset extends Preset {
         description:
           'Get a free key from [TasteDive](https://tastedive.com/account/api_access)',
         type: 'password',
-        constraints: {
-          min: 10,
-        },
+      },
+      {
+        id: 'watchmodeApiKey',
+        name: 'Watchmode API Key',
+        description:
+          'Get a free key from [Watchmode](https://api.watchmode.com/requestApiKey/)',
+        type: 'password',
       },
       {
         id: 'simklRecomendations',
@@ -381,7 +389,7 @@ export class MoreLikeThisPreset extends Preset {
   ): Promise<Addon> {
     return {
       name: options.name || this.METADATA.NAME,
-      manifestUrl: this.generateManifestUrl(options),
+      manifestUrl: await this.generateManifestUrl(userData, options),
       enabled: true,
       library: false,
       resources: options.resources || this.METADATA.SUPPORTED_RESOURCES,
@@ -399,50 +407,90 @@ export class MoreLikeThisPreset extends Preset {
     };
   }
 
-  private static generateManifestUrl(options: Record<string, any>): string {
+  private static async generateManifestUrl(
+    userData: UserData,
+    options: Record<string, any>
+  ): Promise<string> {
     let url = (options.url || this.METADATA.URL).replace(/\/$/, '');
     if (url.endsWith('/manifest.json')) {
       return url;
     }
 
-    const isKeyValid = (key: string) =>
-      typeof key === 'string' && key.length > 0;
+    const tmdbApiKey =
+      options.tmdbApiKey || userData.tmdbApiKey || Env.TMDB_API_KEY;
 
-    let config = {
-      apiKeys: {
-        tmdb: {
-          key: options.tmdbApiKey,
-          valid: isKeyValid(options.tmdbApiKey),
-        },
-        trakt: {
-          key: options.traktApiKey,
-          valid: isKeyValid(options.traktApiKey),
-        },
-        simkl: {
-          key: options.simklRecomendations ? 'default' : '',
-          valid: options.simklRecomendations ? true : false,
-        },
-        tastedive: {
-          key: options.tasteDiveApiKey,
-          valid: isKeyValid(options.tasteDiveApiKey),
-        },
-        gemini: {
-          key: options.geminiApiKey,
-          valid: isKeyValid(options.geminiApiKey),
-        },
-        rpdb: { key: '', valid: false, error: 'No validator found' },
-      },
-      combineCatalogs: options.combineCatalogs,
-      catalogOrder: ['TMDB', 'Trakt', 'Simkl', 'Gemini AI', 'TasteDive'],
-      metadataSource: options.metadataSource || 'cinemeta',
-      language:
-        options.metadataSource === 'tmdb'
-          ? options.language || 'en'
-          : undefined,
-      streamButtonPlatform: options.streamButtonPlatform || 'both',
-      includeTmdbCollection: options.includeTmdbCollection,
-      enableTitleSearching: options.enableTitleSearching,
+    const isKeyValid = (key: string): string =>
+      typeof key === 'string' && key.length > 0 ? 'true' : '';
+
+    const config = {
+      tmdbApiKey: tmdbApiKey ?? '',
+      validatedTmdbApiKey: isKeyValid(tmdbApiKey ?? ''),
+      includeTmdbCollection: options.includeTmdbCollection ? 'on' : '',
+      traktApiKey: options.traktApiKey ?? '',
+      validatedTraktApiKey: isKeyValid(options.traktApiKey ?? ''),
+      geminiApiKey: options.geminiApiKey ?? '',
+      validatedGeminiApiKey: isKeyValid(options.geminiApiKey ?? ''),
+      tasteDiveApiKey: options.tasteDiveApiKey ?? '',
+      validatedTasteDiveApiKey: isKeyValid(options.tasteDiveApiKey ?? ''),
+      simkl: options.simklRecomendations ? 'on' : '',
+      catalogOrder: 'TMDB,Trakt,Simkl,Gemini+AI,TasteDive,Watchmode',
+      metadataSource: options.metadataSource,
+      language: options.language,
+      streamButtonPlatform: options.streamButtonPlatform,
+      enableTitleSearching: options.enableTitleSearching ? 'on' : '',
+      rpdbApiKey: '',
+      validatedRpdbApiKey: 'true',
+      forCopy: 'true',
     };
-    return `${url}/${this.urlEncodeJSON(config)}/manifest.json`;
+
+    const cachedManifest = await moreLikeThisManifests.get(
+      getSimpleTextHash(`${url}?${JSON.stringify(config)}`)
+    );
+    if (cachedManifest) {
+      return cachedManifest;
+    }
+
+    const formData = new URLSearchParams();
+    Object.entries(config).forEach(([key, value]) => {
+      formData.append(key, value);
+    });
+
+    try {
+      const response = await makeRequest(`${url}/saveConfig`, {
+        method: 'POST',
+        timeout: 1000,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': this.METADATA.USER_AGENT,
+        },
+        rawOptions: {
+          redirect: 'manual',
+        },
+        body: formData.toString(),
+      });
+
+      let manifestUrl = response.headers.get('Location');
+      if (response.status < 300 || response.status >= 400) {
+        throw new Error(`${response.status} - ${response.statusText}`);
+      }
+      if (!manifestUrl) {
+        throw new Error('Manifest URL not present in redirect');
+      }
+
+      if (url.startsWith('https://') && manifestUrl.startsWith('http://')) {
+        manifestUrl = manifestUrl.replace('http://', 'https://');
+      }
+
+      moreLikeThisManifests.set(
+        getSimpleTextHash(`${url}?${JSON.stringify(config)}`),
+        manifestUrl,
+        30 * 24 * 60 * 60
+      );
+      return manifestUrl;
+    } catch (error: any) {
+      throw new Error(
+        `Failed to generate ${this.METADATA.NAME} manifest: ${error.message}`
+      );
+    }
   }
 }

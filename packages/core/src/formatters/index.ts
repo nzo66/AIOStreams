@@ -12,30 +12,29 @@ import {
   MinimalisticGdriveFormatter,
 } from './predefined';
 import { CustomFormatter } from './custom';
-import { FormatterType } from '../utils/constants';
+import { UserData } from '../db';
 
-export function createFormatter(
-  type: FormatterType,
-  config?: FormatterConfig,
-  addonName?: string
-): BaseFormatter {
-  switch (type) {
+export function createFormatter(userData: UserData): BaseFormatter {
+  switch (userData.formatter.id) {
     case 'torrentio':
-      return new TorrentioFormatter(addonName);
+      return new TorrentioFormatter(userData);
     case 'torbox':
-      return new TorboxFormatter(addonName);
+      return new TorboxFormatter(userData);
     case 'gdrive':
-      return new GDriveFormatter(addonName);
+      return new GDriveFormatter(userData);
     case 'lightgdrive':
-      return new LightGDriveFormatter(addonName);
+      return new LightGDriveFormatter(userData);
     case 'minimalisticgdrive':
-      return new MinimalisticGdriveFormatter(addonName);
+      return new MinimalisticGdriveFormatter(userData);
     case 'custom':
-      if (!config) {
-        throw new Error('Config is required for custom formatter');
+      if (!userData.formatter.definition) {
+        throw new Error('Definition is required for custom formatter');
       }
-      return CustomFormatter.fromConfig(config, addonName);
+      return CustomFormatter.fromConfig(
+        userData.formatter.definition,
+        userData
+      );
     default:
-      throw new Error(`Unknown formatter type: ${type}`);
+      throw new Error(`Unknown formatter type: ${userData.formatter.id}`);
   }
 }

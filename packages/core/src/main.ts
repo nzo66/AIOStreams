@@ -22,6 +22,7 @@ import {
   AddonCatalog,
   Meta,
   MetaPreview,
+  ParsedMeta,
   ParsedStream,
   Subtitle,
 } from './db/schemas';
@@ -43,7 +44,11 @@ import { TMDBMetadata, TMDBMetadataResponse } from './metadata/tmdb';
 const logger = createLogger('core');
 
 const shuffleCache = Cache.getInstance<string, MetaPreview[]>('shuffle');
-const precacheCache = Cache.getInstance<string, boolean>('precache');
+const precacheCache = Cache.getInstance<string, boolean>(
+  'precache',
+  undefined,
+  true
+);
 
 export interface AIOStreamsError {
   title?: string;
@@ -80,13 +85,13 @@ export class AIOStreams {
     error: string;
   }[] = [];
 
-  constructor(userData: UserData, skipFailedAddons: boolean = true) {
+  constructor(userData: UserData, options?: { skipFailedAddons: boolean }) {
     this.addonInitialisationErrors = [];
     this.userData = userData;
     this.manifestUrl = `${Env.BASE_URL}/stremio/${this.userData.uuid}/${this.userData.encryptedPassword}/manifest.json`;
     this.manifests = {};
     this.supportedResources = {};
-    this.skipFailedAddons = skipFailedAddons;
+    this.skipFailedAddons = options?.skipFailedAddons ?? true;
     this.proxifier = new Proxifier(userData);
     this.limiter = new StreamLimiter(userData);
     this.fetcher = new Fetcher(userData);
@@ -158,10 +163,6 @@ export class AIOStreams {
       }
     );
 
-    // step 2
-    // get all parsed stream objects and errors from all addons that have the stream resource.
-    // and that support the type and match the id prefix
-
     const { streams, errors, statistics } = await this.fetcher.fetch(
       supportedAddons,
       type,
@@ -176,43 +177,8 @@ export class AIOStreams {
       }))
     );
 
-    // step 4
-    // deduplicate streams based on the depuplicatoroptions
+    let finalStreams = await this._processStreams(streams, type, id);
 
-    const deduplicatedStreams = await this.deduplicator.deduplicate(streams);
-
-    let sortedStreams = await this.sorter.sort(
-      deduplicatedStreams,
-      id.startsWith('kitsu') ? 'anime' : type
-    );
-    sortedStreams = sortedStreams
-      // remove HDR+DV from visual tags after filtering/sorting
-      .map((stream) => {
-        if (stream.parsedFile?.visualTags?.includes('HDR+DV')) {
-          stream.parsedFile.visualTags = stream.parsedFile.visualTags.filter(
-            (tag) => tag !== 'HDR+DV'
-          );
-        }
-        return stream;
-      });
-
-    // step 6
-    // limit the number of streams based on the limit criteria.
-
-    const limitedStreams = await this.limiter.limit(sortedStreams);
-
-    // step 7
-    // apply stream expressions last
-    const postFilteredStreams =
-      await this.filterer.applyStreamExpressionFilters(limitedStreams);
-    // step 8
-    // proxify streaming links if a proxy is provided
-
-    const proxifiedStreams = await this.proxifier.proxify(postFilteredStreams);
-
-    let finalStreams = this.applyModifications(proxifiedStreams);
-
-    // step 8
     // if this.userData.precacheNextEpisode is true, start a new thread to request the next episode, check if
     // all provider streams are uncached, and only if so, then send a request to the first uncached stream in the list.
     if (this.userData.precacheNextEpisode && !preCaching) {
@@ -220,7 +186,7 @@ export class AIOStreams {
       // within the last 24 hours (Env.PRECACHE_NEXT_EPISODE_MIN_INTERVAL)
       let precache = false;
       const cacheKey = `precache-${type}-${id}-${this.userData.uuid}`;
-      const cachedNextEpisode = precacheCache.get(cacheKey, false);
+      const cachedNextEpisode = await precacheCache.get(cacheKey, false);
       if (cachedNextEpisode) {
         logger.info(
           `The current request for ${type} ${id} has already had the next episode precached within the last ${Env.PRECACHE_NEXT_EPISODE_MIN_INTERVAL} seconds (${precacheCache.getTTL(cacheKey)} seconds left). Skipping precaching.`
@@ -242,25 +208,6 @@ export class AIOStreams {
       }
     }
 
-    if (this.userData.externalDownloads) {
-      logger.info(`Adding external downloads to streams`);
-      let count = 0;
-      // for each stream object, insert a new stream object, replacing the url with undefined, and appending its value to externalUrl instead
-      // and place it right after the original stream object
-      const streamsWithExternalDownloads: ParsedStream[] = [];
-      for (const stream of proxifiedStreams) {
-        streamsWithExternalDownloads.push(stream);
-        if (stream.url) {
-          const downloadableStream: ParsedStream =
-            StreamUtils.createDownloadableStream(stream);
-          streamsWithExternalDownloads.push(downloadableStream);
-          count++;
-        }
-      }
-      logger.info(`Added ${count} external downloads to streams`);
-      finalStreams = streamsWithExternalDownloads;
-    }
-    // step 9
     // return the final list of streams, followed by the error streams.
     logger.info(
       `Returning ${finalStreams.length} streams and ${errors.length} errors and ${statistics.length} statistic`
@@ -332,6 +279,13 @@ export class AIOStreams {
         extrasString
       );
     } catch (error) {
+      if (extras && extras.includes('skip')) {
+        return {
+          success: true,
+          data: [],
+          errors: [],
+        };
+      }
       return {
         success: false,
         data: [],
@@ -352,7 +306,7 @@ export class AIOStreams {
     if (modification?.shuffle && !(extras && extras.includes('search'))) {
       // shuffle the catalog array if it is not a search
       const cacheKey = `shuffle-${type}-${actualCatalogId}-${extras}-${this.userData.uuid}`;
-      const cachedShuffle = shuffleCache.get(cacheKey, false);
+      const cachedShuffle = await shuffleCache.get(cacheKey);
       if (cachedShuffle) {
         catalog = cachedShuffle;
       } else {
@@ -361,13 +315,18 @@ export class AIOStreams {
           [catalog[i], catalog[j]] = [catalog[j], catalog[i]];
         }
         if (modification.persistShuffleFor) {
-          shuffleCache.set(
+          await shuffleCache.set(
             cacheKey,
             catalog,
             modification.persistShuffleFor * 3600
           );
         }
       }
+    } else if (
+      modification?.reverse &&
+      !(extras && extras.includes('search'))
+    ) {
+      catalog = catalog.reverse();
     }
 
     const rpdbApiKey =
@@ -381,7 +340,12 @@ export class AIOStreams {
         // Apply RPDB poster modification
         if (rpdbApiKey && item.poster) {
           let posterUrl = item.poster;
-          if (this.userData.rpdbUseRedirectApi !== false && Env.BASE_URL) {
+          if (posterUrl.includes('api.ratingposterdb.com')) {
+            // already a RPDB poster, do nothing
+          } else if (
+            this.userData.rpdbUseRedirectApi !== false &&
+            Env.BASE_URL
+          ) {
             const id = (item as any).imdb_id || item.id;
             const url = new URL(Env.BASE_URL);
             url.pathname = '/api/v1/rpdb';
@@ -427,7 +391,7 @@ export class AIOStreams {
   public async getMeta(
     type: string,
     id: string
-  ): Promise<AIOStreamsResponse<Meta | null>> {
+  ): Promise<AIOStreamsResponse<ParsedMeta | null>> {
     logger.info(`Handling meta request`, { type, id });
 
     // Build prioritized list of candidate addons (naturally ordered by priority)
@@ -517,6 +481,22 @@ export class AIOStreams {
         });
         meta.links = this.convertDiscoverDeepLinks(meta.links);
 
+        if (meta.videos) {
+          meta.videos = await Promise.all(
+            meta.videos.map(async (video) => {
+              if (!video.streams) {
+                return video;
+              }
+              video.streams = await this._processStreams(
+                video.streams,
+                type,
+                id,
+                true
+              );
+              return video;
+            })
+          );
+        }
         return {
           success: true,
           data: meta,
@@ -710,7 +690,7 @@ export class AIOStreams {
 
     if (this.addons.length > Env.MAX_ADDONS) {
       throw new Error(
-        `Your current configuration requires ${this.addons.length} addons, but the maximum allowed is ${Env.MAX_ADDONS}. Please reduce the number of addons, or increase it in the environment variables.`
+        `Your current configuration requires ${this.addons.length} addons, but the maximum allowed is ${Env.MAX_ADDONS}. Please reduce the number of addons installed or services enabled. If you own the instance or know the owner, increase the value of the MAX_ADDONS environment variable.`
       );
     }
   }
@@ -753,6 +733,34 @@ export class AIOStreams {
         }
         return resource;
       });
+
+      if (manifest.catalogs) {
+        const existing = addonResources.find((r) => r.name === 'catalog');
+        if (existing) {
+          existing.types = [
+            ...new Set([
+              ...manifest.catalogs.map((c) => {
+                const type = c.type;
+                const modification = this.userData.catalogModifications?.find(
+                  (m) => m.id === `${instanceId}.${c.id}` && m.type === type
+                );
+                return modification?.overrideType ?? type;
+              }),
+            ]),
+          ];
+        } else {
+          addonResources.push({
+            name: 'catalog',
+            types: manifest.catalogs.map((c) => {
+              const type = c.type;
+              const modification = this.userData.catalogModifications?.find(
+                (m) => m.id === `${instanceId}.${c.id}` && m.type === type
+              );
+              return modification?.overrideType ?? type;
+            }),
+          });
+        }
+      }
 
       const addon = this.getAddon(instanceId);
 
@@ -1068,14 +1076,14 @@ export class AIOStreams {
   }
 
   private validateAddon(addon: Addon) {
-    const manifestUrl = new URL(addon.manifestUrl, Env.BASE_URL);
+    const manifestUrl = new URL(addon.manifestUrl);
     const baseUrl = Env.BASE_URL ? new URL(Env.BASE_URL) : undefined;
     if (this.userData.uuid && addon.manifestUrl.includes(this.userData.uuid)) {
       logger.warn(
         `${this.userData.uuid} detected to be trying to cause infinite self scraping`
       );
       throw new Error(
-        `${getAddonName(addon)} appears to be trying to scrape the current user's AIOStreams instance.`
+        `${getAddonName(addon)} would cause infinite self scraping, ensure you wrap a different AIOStreams user.`
       );
     } else if (
       ((baseUrl && manifestUrl.host === baseUrl.host) ||
@@ -1161,12 +1169,16 @@ export class AIOStreams {
     try {
       const metadata = await new TMDBMetadata({
         accessToken: this.userData.tmdbAccessToken,
+        apiKey: this.userData.tmdbApiKey,
       }).getMetadata(id, 'series');
       return metadata;
     } catch (error) {
-      logger.warn(`Error getting metadata for ${id}`, {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.warn(
+        `Error getting metadata for ${id}, will not be able to precache next season if necessary`,
+        {
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
       return undefined;
     }
   }
@@ -1199,6 +1211,63 @@ export class AIOStreams {
       }
     }
     return { season, episode };
+  }
+
+  private async _processStreams(
+    streams: ParsedStream[],
+    type: string,
+    id: string,
+    isMeta: boolean = false
+  ): Promise<ParsedStream[]> {
+    let processedStreams = streams;
+
+    if (isMeta) {
+      processedStreams = await this.filterer.filter(processedStreams, type, id);
+    }
+
+    processedStreams = await this.deduplicator.deduplicate(processedStreams);
+
+    if (isMeta) {
+      await this.precomputer.precompute(processedStreams);
+    }
+
+    let finalStreams = this.applyModifications(
+      await this.proxifier.proxify(
+        await this.filterer.applyStreamExpressionFilters(
+          await this.limiter.limit(
+            await this.sorter.sort(
+              processedStreams,
+              id.startsWith('kitsu') ? 'anime' : type
+            )
+          )
+        )
+      )
+    ).map((stream) => {
+      if (stream.parsedFile) {
+        stream.parsedFile.visualTags = stream.parsedFile.visualTags.filter(
+          (tag) => !constants.FAKE_VISUAL_TAGS.includes(tag as any)
+        );
+      }
+      return stream;
+    });
+
+    if (this.userData.externalDownloads) {
+      const streamsWithExternalDownloads: ParsedStream[] = [];
+      for (const stream of finalStreams) {
+        streamsWithExternalDownloads.push(stream);
+        if (stream.url) {
+          const downloadableStream: ParsedStream =
+            StreamUtils.createDownloadableStream(stream);
+          streamsWithExternalDownloads.push(downloadableStream);
+        }
+      }
+      logger.info(
+        `Added ${streamsWithExternalDownloads.length - finalStreams.length} external downloads to streams`
+      );
+      finalStreams = streamsWithExternalDownloads;
+    }
+
+    return finalStreams;
   }
 
   private async _fetchAndHandleRedirects(stream: ParsedStream, id: string) {
@@ -1317,7 +1386,11 @@ export class AIOStreams {
         );
       }
       const cacheKey = `precache-${type}-${id}-${this.userData.uuid}`;
-      precacheCache.set(cacheKey, true, Env.PRECACHE_NEXT_EPISODE_MIN_INTERVAL);
+      await precacheCache.set(
+        cacheKey,
+        true,
+        Env.PRECACHE_NEXT_EPISODE_MIN_INTERVAL
+      );
       logger.info(`Successfully precached a stream for ${id} (${type})`);
     } catch (error) {
       logger.error(`Error pinging url of first uncached stream`, {

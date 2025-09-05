@@ -11,7 +11,7 @@ const router = Router();
 const logger = createLogger('builtins:torbox-search');
 
 router.get(
-  '/:encodedConfig?/manifest.json',
+  '{/:encodedConfig}/manifest.json',
   async (req: Request, res: Response, next: NextFunction) => {
     const { encodedConfig } = req.params;
 

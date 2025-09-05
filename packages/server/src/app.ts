@@ -9,6 +9,7 @@ import {
   rpdbApi,
   gdriveApi,
   debridApi,
+  searchApi,
 } from './routes/api';
 import {
   configure,
@@ -29,6 +30,7 @@ import {
   corsMiddleware,
   staticRateLimiter,
   internalMiddleware,
+  stremioStreamRateLimiter,
 } from './middlewares';
 
 import { constants, createLogger, Env } from '@aiostreams/core';
@@ -73,6 +75,9 @@ apiRouter.use('/catalogs', catalogApi);
 apiRouter.use('/rpdb', rpdbApi);
 apiRouter.use('/oauth/exchange/gdrive', gdriveApi);
 apiRouter.use('/debrid', debridApi);
+if (Env.ENABLE_SEARCH_API) {
+  apiRouter.use('/search', searchApi);
+}
 app.use(`/api/v${constants.API_VERSION}`, apiRouter);
 
 // Stremio Routes
@@ -113,7 +118,7 @@ builtinsRouter.use('/torbox-search', torboxSearch);
 app.use('/builtins', builtinsRouter);
 
 app.get(
-  ['/_next/*', '/assets/*', '/favicon.ico', '/logo.png'],
+  ['/_next/*any', '/assets/*any', '/favicon.ico', '/logo.png'],
   staticRateLimiter,
   (req, res, next) => {
     const filePath = path.resolve(frontendRoot, req.path.replace(/^\//, ''));
@@ -125,7 +130,7 @@ app.get(
   }
 );
 
-app.get('/static/*', (req, res, next) => {
+app.get('/static/*any', (req, res, next) => {
   const filePath = path.resolve(
     staticRoot,
     req.path.replace(/^\/static\//, '')
@@ -146,23 +151,27 @@ app.get('/', (req, res) => {
 });
 
 // legacy route handlers
-app.get('/:config?/stream/:type/:id.json', (req, res) => {
-  const baseUrl =
-    Env.BASE_URL ||
-    `${req.protocol}://${req.hostname}${
-      req.hostname === 'localhost' ? `:${Env.PORT}` : ''
-    }`;
-  res.json({
-    streams: [
-      StremioTransformer.createErrorStream({
-        errorDescription:
-          'AIOStreams v2 requires you to reconfigure. Please click this stream to reconfigure.',
-        errorUrl: `${baseUrl}/stremio/configure`,
-      }),
-    ],
-  });
-});
-app.get('/:config?/configure', (req, res) => {
+app.get(
+  '{/:config}/stream/:type/:id.json',
+  stremioStreamRateLimiter,
+  (req, res) => {
+    const baseUrl =
+      Env.BASE_URL ||
+      `${req.protocol}://${req.hostname}${
+        req.hostname === 'localhost' ? `:${Env.PORT}` : ''
+      }`;
+    res.json({
+      streams: [
+        StremioTransformer.createErrorStream({
+          errorDescription:
+            'AIOStreams v2 requires you to reconfigure. Please click this stream to reconfigure.',
+          errorUrl: `${baseUrl}/stremio/configure`,
+        }),
+      ],
+    });
+  }
+);
+app.get('{/:config}/configure', (req, res) => {
   res.redirect('/stremio/configure');
 });
 

@@ -1,6 +1,6 @@
 import { Addon, Option, UserData, Resource, Stream, ParsedStream } from '../db';
 import { baseOptions, Preset } from './preset';
-import { createLogger, Env } from '../utils';
+import { createLogger, Env, getSimpleTextHash } from '../utils';
 import { constants, ServiceId } from '../utils';
 import { StreamParser } from '../parser';
 
@@ -132,6 +132,7 @@ export class MediaFusionPreset extends Preset {
       constants.TORBOX_SERVICE,
       constants.DEBRIDLINK_SERVICE,
       constants.EASYDEBRID_SERVICE,
+      constants.DEBRIDER_SERVICE,
       constants.OFFCLOUD_SERVICE,
       constants.PIKPAK_SERVICE,
       constants.SEEDR_SERVICE,
@@ -147,7 +148,8 @@ export class MediaFusionPreset extends Preset {
       ...baseOptions(
         'MediaFusion',
         supportedResources,
-        Env.DEFAULT_MEDIAFUSION_TIMEOUT
+        Env.DEFAULT_MEDIAFUSION_TIMEOUT,
+        Env.MEDIAFUSION_URL
       ),
       {
         id: 'useCachedResultsOnly',
@@ -157,6 +159,7 @@ export class MediaFusionPreset extends Preset {
         type: 'boolean',
         forced: Env.MEDIAFUSION_FORCED_USE_CACHED_RESULTS_ONLY,
         default: Env.MEDIAFUSION_DEFAULT_USE_CACHED_RESULTS_ONLY,
+        showInNoobMode: false,
       },
       {
         id: 'enableWatchlistCatalogs',
@@ -164,6 +167,7 @@ export class MediaFusionPreset extends Preset {
         description: 'Enable watchlist catalogs for the selected services.',
         type: 'boolean',
         default: false,
+        showInNoobMode: false,
       },
       {
         id: 'downloadViaBrowser',
@@ -172,6 +176,7 @@ export class MediaFusionPreset extends Preset {
           'Show download streams to allow downloading the stream from your service, rather than streaming.',
         type: 'boolean',
         default: false,
+        showInNoobMode: false,
       },
       {
         id: 'contributorStreams',
@@ -179,6 +184,7 @@ export class MediaFusionPreset extends Preset {
         description: 'Show a stream to contribute torrents for the title.',
         type: 'boolean',
         default: false,
+        showInNoobMode: false,
       },
       {
         id: 'certificationLevelsFilter',
@@ -187,6 +193,7 @@ export class MediaFusionPreset extends Preset {
           'Choose to not display streams for titles of a certain certification level. Leave blank to show all results.',
         type: 'multi-select',
         required: false,
+        showInNoobMode: false,
         options: [
           {
             value: 'Unknown',
@@ -225,6 +232,7 @@ export class MediaFusionPreset extends Preset {
           'Choose to not display streams that a certain level of nudity. Leave blank to show all results.',
         type: 'multi-select',
         required: false,
+        showInNoobMode: false,
         options: [
           {
             value: 'Unknown',
@@ -256,6 +264,7 @@ export class MediaFusionPreset extends Preset {
           'Optionally override the services that are used. If not specified, then the services that are enabled and supported will be used.',
         type: 'multi-select',
         required: false,
+        showInNoobMode: false,
         options: supportedServices.map((service) => ({
           value: service,
           label: constants.SERVICE_DETAILS[service].name,
@@ -278,7 +287,7 @@ export class MediaFusionPreset extends Preset {
       ID: 'mediafusion',
       NAME: 'MediaFusion',
       LOGO: `https://raw.githubusercontent.com/mhdzumair/MediaFusion/refs/heads/main/resources/images/mediafusion_logo.png`,
-      URL: Env.MEDIAFUSION_URL,
+      URL: Env.MEDIAFUSION_URL[0],
       TIMEOUT: Env.DEFAULT_MEDIAFUSION_TIMEOUT || Env.DEFAULT_TIMEOUT,
       USER_AGENT: Env.DEFAULT_MEDIAFUSION_USER_AGENT || Env.DEFAULT_USER_AGENT,
       SUPPORTED_SERVICES: supportedServices,
@@ -327,7 +336,12 @@ export class MediaFusionPreset extends Preset {
     options: Record<string, any>,
     serviceId?: ServiceId
   ): Addon {
-    const url = this.generateManifestUrl(options);
+    const encodedUserData = this.generateEncodedUserData(
+      userData,
+      options,
+      serviceId
+    );
+    const url = this.generateManifestUrl(options, encodedUserData);
     return {
       name: options.name || this.METADATA.NAME,
       identifier: serviceId
@@ -355,21 +369,20 @@ export class MediaFusionPreset extends Preset {
           }
         : {
             'User-Agent': this.METADATA.USER_AGENT,
-            encoded_user_data: this.generateEncodedUserData(
-              userData,
-              options,
-              serviceId
-            ),
+            encoded_user_data: encodedUserData,
           },
     };
   }
 
-  private static generateManifestUrl(options: Record<string, any>) {
-    const url = options.url || this.METADATA.URL;
+  private static generateManifestUrl(
+    options: Record<string, any>,
+    encodedUserData: string
+  ) {
+    const url = (options.url || this.METADATA.URL).replace(/\/$/, '');
     if (url.endsWith('/manifest.json')) {
       return url;
     }
-    return `${url}/manifest.json`;
+    return `${url}/${getSimpleTextHash(encodedUserData)}/manifest.json`;
   }
 
   private static generateEncodedUserData(

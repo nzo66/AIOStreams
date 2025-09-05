@@ -8,7 +8,11 @@ import {
 } from '../db';
 import { CacheKeyRequestOptions, Preset, baseOptions } from './preset';
 import { constants, Env } from '../utils';
-import { debridioSocialOption } from './debridio';
+import {
+  debridioSocialOption,
+  debridioApiKeyOption,
+  debridioLogo,
+} from './debridio';
 import { FileParser, StreamParser } from '../parser';
 
 class DebridioTvStreamParser extends StreamParser {
@@ -112,14 +116,7 @@ export class DebridioTvPreset extends Preset {
         supportedResources,
         Env.DEFAULT_DEBRIDIO_TV_TIMEOUT
       ),
-      {
-        id: 'debridioApiKey',
-        name: 'Debridio API Key',
-        description:
-          'Your Debridio API Key, located at your [account settings](https://debridio.com/account)',
-        type: 'password',
-        required: true,
-      },
+      debridioApiKeyOption,
       {
         id: 'channels',
         name: 'Channels',
@@ -144,7 +141,7 @@ export class DebridioTvPreset extends Preset {
     return {
       ID: 'debridio-tv',
       NAME: 'Debridio TV',
-      LOGO: 'https://res.cloudinary.com/adobotec/image/upload/w_120,h_120/v1735925306/debridio/logo.png.png',
+      LOGO: debridioLogo,
       URL: Env.DEBRIDIO_TV_URL,
       TIMEOUT: Env.DEFAULT_DEBRIDIO_TV_TIMEOUT || Env.DEFAULT_TIMEOUT,
       USER_AGENT: Env.DEFAULT_DEBRIDIO_TV_USER_AGENT || Env.DEFAULT_USER_AGENT,

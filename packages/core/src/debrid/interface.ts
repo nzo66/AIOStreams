@@ -18,6 +18,20 @@ export class DebridError extends Error {
   }
 }
 
+interface UsenetDownload {
+  usenetDownloadId: number;
+  authId?: string;
+  hash?: string;
+  name?: string;
+  status: 'downloaded' | 'downloading' | 'queued';
+  files: {
+    id?: number;
+    size?: number;
+    mimeType?: string;
+    name?: string;
+  }[];
+}
+
 export const getProvider = (
   storeName: ServiceId,
   storeCredential: string,
@@ -116,10 +130,10 @@ export class DebridInterface {
   private async resolveTorrent(
     playbackInfo: PlaybackInfo & { type: 'torrent' },
     filename: string
-  ) {
+  ): Promise<string | undefined> {
     let { hash, index, parsedId } = playbackInfo;
     const cacheKey = `${this.storeAuth.storeName}:${hash}:${index ?? 'undefined'}:${this.storeAuth.storeCredential}:${this.clientIp}`;
-    const cachedLink = DebridInterface.playbackLinkCache.get(cacheKey);
+    const cachedLink = await DebridInterface.playbackLinkCache.get(cacheKey);
     if (cachedLink) {
       logger.debug(`Using cached link for ${hash}`);
       return cachedLink;
@@ -181,7 +195,11 @@ export class DebridInterface {
     });
 
     const playbackLink = link.data.link;
-    DebridInterface.playbackLinkCache.set(cacheKey, playbackLink, 60 * 30);
+    await DebridInterface.playbackLinkCache.set(
+      cacheKey,
+      playbackLink,
+      60 * 30
+    );
     return playbackLink;
   }
 
@@ -190,34 +208,59 @@ export class DebridInterface {
     filename: string
   ): Promise<string | undefined> {
     const { nzb } = playbackInfo;
+    const cacheKey = `${this.storeAuth.storeName}:${this.storeAuth.storeCredential}:${nzb}:${this.clientIp}`;
+    const cachedLink = await DebridInterface.playbackLinkCache.get(cacheKey);
+    if (cachedLink) {
+      logger.debug(`Using cached link for ${nzb}`);
+      return cachedLink;
+    }
 
     if (!this.torboxApi) {
       throw new Error('Torbox API not available');
     }
 
-    const nzbFile = await this.torboxApi.usenet.createUsenetDownload('v1', {
+    const usenetDownload = await this.addUsenetDownload({
       link: nzb,
+      name: filename,
     });
 
-    logger.debug(`Created usenet download for ${nzb}: ${nzbFile.data?.detail}`);
-    if (
-      nzbFile.data?.detail &&
-      !nzbFile.data.detail.includes('Using cached download.')
-    ) {
-      logger.debug(
-        `Usenet download failed detected to not be cached, returning undefined`
-      );
+    if (!usenetDownload || usenetDownload.status !== 'downloaded') {
       return undefined;
     }
 
-    if (nzbFile.data?.error || !nzbFile.data?.data?.usenetdownloadId) {
-      throw new Error(
-        `Usenet download failed: ${nzbFile.data?.error} ${nzbFile.data?.detail}`
-      );
+    if (!usenetDownload.files.length) {
+      throw new Error('No files found for usenet download');
+    }
+    let fileId: number | undefined;
+    if (usenetDownload.files.length > 1) {
+      const files = usenetDownload.files.map((file) => {
+        return {
+          parsed: FileParser.parse(file.name ?? ''),
+          isVideo:
+            file.mimeType?.includes('video') || isVideoFile(file.name ?? ''),
+          index: file.id ?? 0,
+          name: file.name ?? '',
+          size: file.size ?? 0,
+        };
+      });
+
+      const file = findMatchingFileInTorrent(files);
+
+      if (!file) {
+        throw new Error('No matching file found');
+      }
+
+      logger.debug(`Found matching file`, {
+        chosenFile: file.name,
+        chosenIndex: file.index,
+        availableFiles: `[${files.map((file) => file.name).join(', ')}]`,
+      });
+      fileId = file.index;
     }
 
     const link = await this.torboxApi.usenet.requestDownloadLink('v1', {
-      usenetId: nzbFile.data?.data?.usenetdownloadId?.toString(),
+      usenetId: usenetDownload.usenetDownloadId.toString(),
+      fileId: fileId ? fileId.toString() : undefined,
       userIp: this.clientIp,
       redirect: 'false',
       token: this.storeAuth.storeCredential,
@@ -227,6 +270,86 @@ export class DebridInterface {
       `Requested usenet download link for ${nzb}: ${link.data?.data} ${link.metadata.status}`
     );
 
-    return link.data?.data ?? undefined;
+    const playbackLink = link.data?.data;
+    if (playbackLink) {
+      await DebridInterface.playbackLinkCache.set(
+        cacheKey,
+        playbackLink,
+        60 * 30
+      );
+    }
+    return playbackLink;
+  }
+
+  private async addUsenetDownload(params: {
+    link: string;
+    name: string;
+  }): Promise<UsenetDownload | undefined> {
+    if (!this.torboxApi) {
+      throw new Error('Torbox API not available');
+    }
+
+    const { link, name } = params;
+    const res = await this.torboxApi.usenet.createUsenetDownload('v1', {
+      link,
+      name,
+    });
+
+    if (!res.data?.data?.usenetdownloadId) {
+      throw new Error(`Usenet download failed: ${res.data?.detail}`);
+    }
+    logger.debug(`Created usenet download for ${link}: ${res.data?.detail}`);
+    if (
+      res.data?.detail &&
+      !res.data.detail.includes('Using cached download.')
+    ) {
+      logger.debug(
+        `Usenet download detected to not be cached, returning undefined`
+      );
+      return undefined;
+    }
+    let state: UsenetDownload['status'] = 'queued';
+
+    const nzb = await this.torboxApi?.usenet.getUsenetList('v1', {
+      id: res.data?.data?.usenetdownloadId?.toString(),
+    });
+    if (!nzb?.data?.data || nzb?.data?.error || nzb.data.success === false) {
+      throw new Error(
+        `Failed to get usenet list: ${nzb?.data?.error || 'Unknown error'}${nzb?.data?.detail ? '- ' + nzb.data.detail : ''}`
+      );
+    } else if (Array.isArray(nzb.data.data)) {
+      throw new Error(`Unexpected response format for usenet download`);
+    }
+
+    const usenetDownload = nzb.data.data;
+
+    if (usenetDownload.downloadFinished && usenetDownload.downloadPresent) {
+      state = 'downloaded';
+    } else if (usenetDownload.progress && usenetDownload.progress > 0) {
+      state = 'downloading';
+    }
+    const files: UsenetDownload['files'] = [];
+    for (const file of usenetDownload.files ?? []) {
+      files.push({
+        id: file.id,
+        mimeType: file.mimetype,
+        name: file.shortName ?? file.name,
+        size: file.size,
+      });
+    }
+    logger.debug(`Found matching usenet download`, {
+      usenetDownloadId: usenetDownload.id,
+      status: usenetDownload.downloadState,
+      state: state,
+    });
+
+    return {
+      usenetDownloadId: usenetDownload.id ?? res.data.data.usenetdownloadId,
+      authId: usenetDownload.authId ?? res.data.data.authId,
+      hash: usenetDownload.hash ?? res.data.data.hash,
+      name: usenetDownload.name ?? undefined,
+      status: state,
+      files,
+    };
   }
 }

@@ -40,6 +40,7 @@ export class PeerflixPreset extends Preset {
         })),
         default: undefined,
         emptyIsUndefined: true,
+        showInNoobMode: false,
       },
       {
         id: 'useMultipleInstances',
@@ -49,6 +50,7 @@ export class PeerflixPreset extends Preset {
         type: 'boolean',
         default: false,
         required: true,
+        showInNoobMode: false,
       },
       {
         id: 'showTorrentLinks',
@@ -57,6 +59,7 @@ export class PeerflixPreset extends Preset {
           'If enabled, the addon will show P2P streams for uncached torrents. This is useful for users who want to use the addon to stream torrents that are not cached by the debrid service.',
         type: 'boolean',
         default: false,
+        showInNoobMode: false,
         required: true,
       },
     ];

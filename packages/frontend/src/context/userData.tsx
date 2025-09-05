@@ -42,8 +42,9 @@ const DefaultUserData: UserData = {
     ],
   },
   deduplicator: {
-    enabled: false,
+    enabled: true,
     keys: ['filename', 'infoHash'],
+    multiGroupBehaviour: 'aggressive',
     cached: 'single_result',
     uncached: 'per_service',
     p2p: 'single_result',

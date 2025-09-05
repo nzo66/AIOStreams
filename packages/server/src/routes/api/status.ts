@@ -8,16 +8,18 @@ import {
 import { StatusResponse } from '@aiostreams/core';
 import { encryptString } from '@aiostreams/core';
 import { FeatureControl } from '@aiostreams/core';
+import { createResponse } from '../../utils/responses';
 
 const router = Router();
 
-router.get('/', async (req: Request, res: Response) => {
+const statusInfo = async (): Promise<StatusResponse> => {
   const userCount = await UserRepository.getUserCount();
+
   let forcedPublicProxyUrl = Env.FORCE_PROXY_PUBLIC_URL;
   if (Env.FORCE_PUBLIC_PROXY_HOST) {
     forcedPublicProxyUrl = `${Env.FORCE_PUBLIC_PROXY_PROTOCOL}://${Env.FORCE_PUBLIC_PROXY_HOST}:${Env.FORCE_PUBLIC_PROXY_PORT ?? ''}`;
   }
-  const info: StatusResponse = {
+  return {
     version: Env.VERSION,
     tag: Env.TAG,
     commit: Env.GIT_COMMIT,
@@ -32,10 +34,12 @@ router.get('/', async (req: Request, res: Response) => {
       tmdbApiAvailable: !!Env.TMDB_ACCESS_TOKEN,
       regexFilterAccess: Env.REGEX_FILTER_ACCESS,
       allowedRegexPatterns:
-        Env.ALLOWED_REGEX_PATTERNS.length > 0
+        (await FeatureControl.allowedRegexPatterns()).patterns.length > 0
           ? {
-              patterns: Env.ALLOWED_REGEX_PATTERNS,
-              description: Env.ALLOWED_REGEX_PATTERNS_DESCRIPTION,
+              patterns: (await FeatureControl.allowedRegexPatterns()).patterns,
+              description: (await FeatureControl.allowedRegexPatterns())
+                .description,
+              urls: Env.ALLOWED_REGEX_PATTERNS_URLS || [],
             }
           : undefined,
       loggingSensitiveInfo: Env.LOG_SENSITIVE_INFO,
@@ -89,10 +93,20 @@ router.get('/', async (req: Request, res: Response) => {
       services: getEnvironmentServiceDetails(),
     },
   };
-  res.status(200).json({
-    success: true,
-    data: info,
-  });
+};
+
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const info = await statusInfo();
+    res.status(200).json(
+      createResponse({
+        success: true,
+        data: info,
+      })
+    );
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

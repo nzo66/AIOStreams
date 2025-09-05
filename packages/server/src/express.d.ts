@@ -6,6 +6,7 @@ declare global {
     interface Request {
       userData?: UserData;
       userIp?: string;
+      requestIp?: string;
       uuid?: string;
     }
   }

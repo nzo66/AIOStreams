@@ -1,4 +1,4 @@
-import { FormatterType, ParsedStream, UserData } from '@aiostreams/core';
+import { ParsedStream, UserData } from '@aiostreams/core';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -214,9 +214,7 @@ export class UserConfigAPI {
 
   static async formatStream(
     stream: ParsedStream,
-    formatter: FormatterType,
-    definition?: { name: string; description: string },
-    addonName?: string
+    userData: UserData
   ): Promise<ApiResponse<{ name: string; description: string }>> {
     const response = await fetch(`${this.BASE_URL}/format`, {
       method: 'POST',
@@ -225,9 +223,7 @@ export class UserConfigAPI {
       },
       body: JSON.stringify({
         stream,
-        formatter,
-        definition,
-        addonName,
+        userData,
       }),
     });
 

@@ -1,8 +1,9 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useMode } from './mode';
 
-export const VALID_MENUS = [
+const VALID_MENUS = [
   'about',
   'services',
   'addons',
@@ -13,6 +14,8 @@ export const VALID_MENUS = [
   'miscellaneous',
   'save-install',
 ];
+
+const PRO_ONLY_MENUS = ['proxy', 'sorting'];
 
 export type MenuId = (typeof VALID_MENUS)[number];
 
@@ -35,12 +38,30 @@ const MenuContext = createContext<MenuContextType>({
 });
 
 export function MenuProvider({ children }: { children: React.ReactNode }) {
+  const { mode } = useMode();
+  const menus = [
+    'about',
+    'services',
+    'addons',
+    'filters',
+    'sorting',
+    'formatter',
+    'proxy',
+    'miscellaneous',
+    'save-install',
+  ].filter((menu) => {
+    if (mode === 'noob') {
+      return !PRO_ONLY_MENUS.includes(menu);
+    }
+    return true;
+  });
+
   // Get initial menu from URL or default to 'about'
   const initialMenu = (() => {
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       const menu = url.searchParams.get('menu');
-      if (menu && VALID_MENUS.includes(menu)) {
+      if (menu && menus.includes(menu)) {
         return menu as MenuId;
       }
     }
@@ -55,20 +76,19 @@ export function MenuProvider({ children }: { children: React.ReactNode }) {
     setInternalSelectedMenu(menu);
   };
 
-  const firstMenu = VALID_MENUS[0];
-  const lastMenu = VALID_MENUS[VALID_MENUS.length - 1];
+  const firstMenu = menus[0];
+  const lastMenu = menus[menus.length - 1];
 
   const nextMenu = () => {
-    const currentIndex = VALID_MENUS.indexOf(selectedMenu);
-    const nextIndex = (currentIndex + 1) % VALID_MENUS.length;
-    setSelectedMenu(VALID_MENUS[nextIndex]);
+    const currentIndex = menus.indexOf(selectedMenu);
+    const nextIndex = (currentIndex + 1) % menus.length;
+    setSelectedMenu(menus[nextIndex]);
   };
 
   const previousMenu = () => {
-    const currentIndex = VALID_MENUS.indexOf(selectedMenu);
-    const previousIndex =
-      (currentIndex - 1 + VALID_MENUS.length) % VALID_MENUS.length;
-    setSelectedMenu(VALID_MENUS[previousIndex]);
+    const currentIndex = menus.indexOf(selectedMenu);
+    const previousIndex = (currentIndex - 1 + menus.length) % menus.length;
+    setSelectedMenu(menus[previousIndex]);
   };
 
   // Update URL when menu changes

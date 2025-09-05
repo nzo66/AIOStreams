@@ -22,6 +22,7 @@ import { UserDataProvider } from '@/context/userData';
 import { LuffyError } from '@/components/shared/luffy-error';
 import { TextGenerateEffect } from '@/components/shared/text-generate-effect';
 import { OptionsProvider } from '@/context/options';
+import { ModeProvider } from '@/context/mode';
 
 function ErrorOverlay({ error }: { error: string | null }) {
   return (
@@ -78,7 +79,9 @@ export default function Home() {
       <StatusProvider>
         <UserDataProvider>
           <OptionsProvider>
-            <AppContent />
+            <ModeProvider>
+              <AppContent />
+            </ModeProvider>
           </OptionsProvider>
         </UserDataProvider>
       </StatusProvider>

@@ -3,6 +3,7 @@ import { VISUAL_TAGS } from '../utils/constants';
 import { ENCODES } from '../utils/constants';
 import { LANGUAGES } from '../utils/constants';
 import { AUDIO_CHANNELS } from '../utils/constants';
+import { FakeVisualTag } from '../utils/constants';
 const createRegex = (pattern: string): RegExp =>
   new RegExp(`(?<![^\\s\\[(_\\-.,])(${pattern})(?=[\\s\\)\\]_.\\-,]|$)`, 'i');
 
@@ -10,34 +11,19 @@ const createLanguageRegex = (pattern: string): RegExp =>
   createRegex(`${pattern}(?![ .\\-_]?sub(title)?s?)`);
 
 type PARSE_REGEX = {
-  resolutions: Omit<Record<(typeof RESOLUTIONS)[number], RegExp>, 'Unknown'> & {
-    Unknown?: RegExp;
-  };
-  qualities: Omit<Record<(typeof QUALITIES)[number], RegExp>, 'Unknown'> & {
-    Unknown?: RegExp;
-  };
+  resolutions: Omit<Record<(typeof RESOLUTIONS)[number], RegExp>, 'Unknown'>;
+  qualities: Omit<Record<(typeof QUALITIES)[number], RegExp>, 'Unknown'>;
   visualTags: Omit<
     Record<(typeof VISUAL_TAGS)[number], RegExp>,
-    'Unknown' | 'HDR+DV'
-  > & {
-    Unknown?: RegExp;
-    'HDR+DV'?: RegExp;
-  };
-  audioTags: Omit<Record<(typeof AUDIO_TAGS)[number], RegExp>, 'Unknown'> & {
-    Unknown?: RegExp;
-  };
+    'Unknown' | FakeVisualTag
+  >;
+  audioTags: Omit<Record<(typeof AUDIO_TAGS)[number], RegExp>, 'Unknown'>;
   audioChannels: Omit<
     Record<(typeof AUDIO_CHANNELS)[number], RegExp>,
     'Unknown'
-  > & {
-    Unknown?: RegExp;
-  };
-  languages: Omit<Record<(typeof LANGUAGES)[number], RegExp>, 'Unknown'> & {
-    Unknown?: RegExp;
-  };
-  encodes: Omit<Record<(typeof ENCODES)[number], RegExp>, 'Unknown'> & {
-    Unknown?: RegExp;
-  };
+  >;
+  languages: Omit<Record<(typeof LANGUAGES)[number], RegExp>, 'Unknown'>;
+  encodes: Omit<Record<(typeof ENCODES)[number], RegExp>, 'Unknown'>;
   releaseGroup: RegExp;
 };
 
@@ -60,7 +46,8 @@ export const PARSE_REGEX: PARSE_REGEX = {
     '144p': createRegex('(bd|hd|m)?(144(p|i)?)'),
   },
   qualities: {
-    'BluRay REMUX': /(remux.*bluray|bluray.*remux|(bd|br|b|uhd)[.\-_]?remux)/i,
+    'BluRay REMUX':
+      /(remux.*blu[\s.\-_]?ray|blu[\s.\-_]?ray.*remux|(bd|br|b|uhd)[\s.\-_]?remux)/i,
     BluRay: createRegex(
       'blu[ .\\-_]?ray|((bd|br|b)[ .\\-_]?(rip|r)?)(?![ .\\-_]?remux)'
     ),
@@ -79,9 +66,9 @@ export const PARSE_REGEX: PARSE_REGEX = {
   },
   visualTags: {
     '10bit': createRegex('10[ .\\-_]?bit'),
-    'HDR10+': createRegex('hdr[ .\\-_]?10[ .\\-_]?(plus|[+])'),
-    HDR10: createRegex('hdr[ .\\-_]?10(?![ .\\-_]?(?:\\+|plus))'),
-    HDR: createRegex('hdr(?![ .\\-_]?10)(?![ .\\-_]?(?:\\+|plus))'),
+    'HDR10+': createRegex('hdr[ .\\-_]?10[ .\\-_]?(p(lus)?|[+])'),
+    HDR10: createRegex('hdr[ .\\-_]?10(?![ .\\-_]?(?:\\+|p(lus)?))'),
+    HDR: createRegex('hdr(?![ .\\-_]?10)(?![ .\\-_]?(?:\\+|p(lus)?))'),
     DV: createRegex('do?(lby)?[ .\\-_]?vi?(sion)?(?:[ .\\-_]?atmos)?|dv'),
     '3D': createRegex('(bd)?(3|three)[ .\\-_]?(d(imension)?(al)?)'),
     IMAX: createRegex('imax'),

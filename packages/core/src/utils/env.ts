@@ -11,6 +11,7 @@ import {
   num,
   EnvError,
   port,
+  EnvMissingError,
 } from 'envalid';
 import { ResourceManager } from './resources';
 import * as constants from './constants';
@@ -88,9 +89,40 @@ const namedRegexes = makeValidator((x) => {
   return parsed;
 });
 
+const removeTrailingSlash = (x: string) =>
+  x.endsWith('/') ? x.slice(0, -1) : x;
+
+const presetUrls = makeExactValidator<readonly string[]>((x) => {
+  if (typeof x !== 'string') {
+    throw new EnvError('Preset URLs must be a string or an array of strings');
+  }
+  const validateUrl = (x: string) => {
+    try {
+      new URL(x);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+  try {
+    const urls = JSON.parse(x);
+    if (!Array.isArray(urls) || urls.some((x) => !validateUrl(x))) {
+      throw new EnvError(
+        'Preset URLs must be an array of URLs or a single URL'
+      );
+    }
+    return Object.freeze(urls.map(removeTrailingSlash));
+  } catch (e) {
+    if (typeof x === 'string' && validateUrl(x)) {
+      return Object.freeze([removeTrailingSlash(x)]);
+    }
+    throw new EnvError('Preset URLs must be an array of URLs or a single URL');
+  }
+});
+
 const url = makeValidator((x) => {
   if (x === '') {
-    return x;
+    throw new EnvMissingError(`URL cannot be empty`);
   }
   try {
     new URL(x);
@@ -98,7 +130,7 @@ const url = makeValidator((x) => {
     throw new EnvError(`Invalid URL: ${x}`);
   }
   // remove trailing slash
-  return x.endsWith('/') ? x.slice(0, -1) : x;
+  return removeTrailingSlash(x);
 });
 
 export const forcedPort = makeValidator<string>((input: string) => {
@@ -157,6 +189,43 @@ const readonly = makeValidator((x) => {
     throw new EnvError('Readonly environment variable, cannot be set');
   }
   return x;
+});
+
+const boolOrList = makeValidator((x) => {
+  if (typeof x !== 'string') {
+    return undefined;
+  }
+  x = x.toLowerCase();
+  if (['true', 'false', '1', '0'].includes(x)) {
+    return x === 'true' || x === '1';
+  }
+  return x.split(',').map((x) => x.trim());
+});
+
+const urlMappings = makeValidator<Record<string, string>>((x) => {
+  // json object with string properties
+  const parsed = JSON.parse(x);
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new EnvError('URL mappings must be an object');
+  }
+  const mappings: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof key !== 'string' || typeof value !== 'string') {
+      throw new EnvError(
+        'URL mappings must be an object with string properties only'
+      );
+    }
+    try {
+      const keyUrl = new URL(removeTrailingSlash(key));
+      const valueUrl = new URL(removeTrailingSlash(value));
+      mappings[keyUrl.origin] = valueUrl.origin;
+    } catch (e) {
+      throw new EnvError(
+        `Each key and value in the URL mappings must be a valid URL`
+      );
+    }
+  }
+  return mappings;
 });
 
 export const Env = cleanEnv(process.env, {
@@ -252,6 +321,14 @@ export const Env = cleanEnv(process.env, {
     default: 'sqlite://./data/db.sqlite',
     desc: 'Database URI for the addon',
   }),
+  REDIS_URI: str({
+    default: undefined,
+    desc: 'Redis URI for the addon',
+  }),
+  REDIS_TIMEOUT: num({
+    default: 500,
+    desc: 'Redis timeout for the addon',
+  }),
   ADDON_PROXY: url({
     default: undefined,
     desc: 'Proxy URL for the addon',
@@ -259,6 +336,10 @@ export const Env = cleanEnv(process.env, {
   ADDON_PROXY_CONFIG: str({
     default: undefined,
     desc: 'Proxy config for the addon in format of comma separated hostname:boolean',
+  }),
+  REQUEST_URL_MAPPINGS: urlMappings({
+    default: undefined,
+    desc: 'Mapping of URLs to another, converts requests to the original URL to the mapped URL',
   }),
   ALIASED_CONFIGURATIONS: aliasedUUIDs({
     default: {},
@@ -272,7 +353,22 @@ export const Env = cleanEnv(process.env, {
     default: undefined,
     desc: 'TMDB Read Access Token. Used for fetching metadata for the strict title matching option.',
   }),
-
+  TMDB_API_KEY: str({
+    default: undefined,
+    desc: 'TMDB API Key. Used for fetching metadata for the strict title matching option.',
+  }),
+  PROVIDE_STREAM_DATA: boolOrList<boolean | string[] | undefined>({
+    default: undefined,
+    desc: 'Provide stream data to the client in stream responses. Required for users to wrap this addon within another AIOStreams instance.',
+  }),
+  TRUSTED_IPS: commaSeparated({
+    default: ['172.17.0.0/16', '127.0.0.1/32', '::1/128'],
+    desc: 'Comma separated list of trusted IPs / IP ranges. Used when determining the requesting IP. Not required for user IP as all headers are always trusted for user IP.',
+  }),
+  ENABLE_SEARCH_API: bool({
+    default: true,
+    desc: 'Enable the search API. If true, the search API will be enabled.',
+  }),
   // logging settings
   LOG_SENSITIVE_INFO: bool({
     default: false,
@@ -424,9 +520,17 @@ export const Env = cleanEnv(process.env, {
     desc: 'Max number of groups',
   }),
 
-  ALLOWED_REGEX_PATTERNS: json({
+  ALLOWED_REGEX_PATTERNS: json<string[]>({
     default: [],
     desc: 'Allowed regex patterns',
+  }),
+  ALLOWED_REGEX_PATTERNS_URLS: json<string[]>({
+    default: undefined,
+    desc: 'Comma separated list of allowed regex patterns URLs',
+  }),
+  ALLOWED_REGEX_PATTERNS_URLS_REFRESH_INTERVAL: num({
+    default: 86400000,
+    desc: 'Interval for refreshing regex patterns from URLs in milliseconds',
   }),
   ALLOWED_REGEX_PATTERNS_DESCRIPTION: str({
     default: undefined,
@@ -457,6 +561,11 @@ export const Env = cleanEnv(process.env, {
   MANIFEST_TIMEOUT: num({
     default: 3000,
     desc: 'Timeout for manifest requests',
+  }),
+
+  BACKGROUND_RESOURCE_REQUEST_TIMEOUT: num({
+    default: undefined,
+    desc: 'Timeout for background resource requests, uses your maximum timeout if not set',
   }),
 
   FORCE_PUBLIC_PROXY_HOST: host({
@@ -599,6 +708,10 @@ export const Env = cleanEnv(process.env, {
     default: undefined,
     desc: 'Default EasyDebrid API key',
   }),
+  DEFAULT_DEBRIDER_API_KEY: str({
+    default: undefined,
+    desc: 'Default Debrider API key',
+  }),
   DEFAULT_PIKPAK_EMAIL: str({
     default: undefined,
     desc: 'Default PikPak email',
@@ -665,6 +778,10 @@ export const Env = cleanEnv(process.env, {
     default: undefined,
     desc: 'Forced EasyDebrid API key',
   }),
+  FORCED_DEBRIDER_API_KEY: str({
+    default: undefined,
+    desc: 'Forced Debrider API key',
+  }),
   FORCED_PIKPAK_EMAIL: str({
     default: undefined,
     desc: 'Forced PikPak email',
@@ -678,8 +795,18 @@ export const Env = cleanEnv(process.env, {
     desc: 'Forced Seedr encoded token',
   }),
 
-  COMET_URL: url({
-    default: 'https://comet.elfhosted.com',
+  STREAM_URL_MAPPINGS: urlMappings({
+    default: undefined,
+    desc: 'Mapping of URLs to another, converts stream URLs from the original URL to the mapped URL',
+  }),
+
+  AIOSTREAMS_USER_AGENT: userAgent({
+    default: `AIOStreams/${metadata?.version || 'unknown'}`,
+    desc: 'AIOStreams user agent',
+  }),
+
+  COMET_URL: presetUrls({
+    default: ['https://comet.elfhosted.com'],
     desc: 'Comet URL',
   }),
   FORCE_COMET_HOSTNAME: host({
@@ -705,8 +832,8 @@ export const Env = cleanEnv(process.env, {
   }),
 
   // MediaFusion settings
-  MEDIAFUSION_URL: url({
-    default: 'https://mediafusion.elfhosted.com',
+  MEDIAFUSION_URL: presetUrls({
+    default: ['https://mediafusion.elfhosted.com'],
     desc: 'MediaFusion URL',
   }),
   MEDIAFUSION_API_PASSWORD: str({
@@ -731,8 +858,8 @@ export const Env = cleanEnv(process.env, {
   }),
 
   // Jackettio settings
-  JACKETTIO_URL: url({
-    default: 'https://jackettio.elfhosted.com',
+  JACKETTIO_URL: presetUrls({
+    default: ['https://jackettio.elfhosted.com'],
     desc: 'Jackettio URL',
   }),
   DEFAULT_JACKETTIO_INDEXERS: json({
@@ -934,8 +1061,8 @@ export const Env = cleanEnv(process.env, {
   }),
 
   // StremThru Store settings
-  STREMTHRU_STORE_URL: url({
-    default: 'https://stremthru.elfhosted.com/stremio/store',
+  STREMTHRU_STORE_URL: presetUrls({
+    default: ['https://stremthru.elfhosted.com/stremio/store'],
     desc: 'StremThru Store URL',
   }),
   DEFAULT_STREMTHRU_STORE_TIMEOUT: num({
@@ -961,8 +1088,8 @@ export const Env = cleanEnv(process.env, {
   }),
 
   // StremThru Torz settings
-  STREMTHRU_TORZ_URL: url({
-    default: 'https://stremthru.elfhosted.com/stremio/torz',
+  STREMTHRU_TORZ_URL: presetUrls({
+    default: ['https://stremthru.elfhosted.com/stremio/torz'],
     desc: 'StremThru Torz URL',
   }),
   DEFAULT_STREMTHRU_TORZ_TIMEOUT: num({
@@ -1365,6 +1492,32 @@ export const Env = cleanEnv(process.env, {
     desc: 'Default Content Deep Dive user agent',
   }),
 
+  AI_COMPANION_URL: url({
+    default: 'https://ai-companion.saladprecedestretch123.uk',
+    desc: 'AI Companion URL',
+  }),
+  DEFAULT_AI_COMPANION_TIMEOUT: num({
+    default: undefined,
+    desc: 'Default AI Companion timeout',
+  }),
+  DEFAULT_AI_COMPANION_USER_AGENT: userAgent({
+    default: undefined,
+    desc: 'Default AI Companion user agent',
+  }),
+
+  ASTREAM_URL: url({
+    default: 'https://astream.stremiofr.com',
+    desc: 'AStream URL',
+  }),
+  DEFAULT_ASTREAM_TIMEOUT: num({
+    default: undefined,
+    desc: 'Default AStream timeout',
+  }),
+  DEFAULT_ASTREAM_USER_AGENT: userAgent({
+    default: undefined,
+    desc: 'Default AStream user agent',
+  }),
+
   BUILTIN_STREMTHRU_URL: url({
     default: 'https://stremthru.13377001.xyz',
     desc: 'Builtin StremThru URL',
@@ -1415,6 +1568,10 @@ export const Env = cleanEnv(process.env, {
     default: 15 * 60, // 15 minutes
     desc: 'Builtin TorBox Search instant availability cache TTL',
   }),
+  BUILTIN_TORBOX_SEARCH_CACHE_PER_USER_SEARCH_ENGINE: bool({
+    default: false,
+    desc: 'Whether to cache results separately for every user that is using their own search engines.',
+  }),
 
   // Rate limiting settings
   DISABLE_RATE_LIMITS: bool({
@@ -1438,11 +1595,11 @@ export const Env = cleanEnv(process.env, {
     default: 5, // allow 100 requests per IP per minute
   }),
   STREAM_API_RATE_LIMIT_WINDOW: num({
-    default: 5, // 1 minute
+    default: 10, // 1 minute
     desc: 'Time window for stream API rate limiting in seconds',
   }),
   STREAM_API_RATE_LIMIT_MAX_REQUESTS: num({
-    default: 10, // allow 100 requests per IP per minute
+    default: 5, // allow 100 requests per IP per minute
   }),
   FORMAT_API_RATE_LIMIT_WINDOW: num({
     default: 5, // 10 seconds

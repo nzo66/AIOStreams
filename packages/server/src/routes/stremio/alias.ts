@@ -12,9 +12,12 @@ interface AliasParams {
   [key: string]: string;
 }
 
-router.get('/:alias/*', (req: Request<AliasParams>, res) => {
+router.get('/:alias/*wildcardPath', (req: Request<AliasParams>, res) => {
   const { alias } = req.params;
-  const wildcardPath = req.params[0] || '';
+  let { wildcardPath } = req.params;
+  if (Array.isArray(wildcardPath)) {
+    wildcardPath = wildcardPath.join('/');
+  }
 
   const configuration = Env.ALIASED_CONFIGURATIONS[alias];
   if (!configuration || !configuration.uuid || !configuration.password) {

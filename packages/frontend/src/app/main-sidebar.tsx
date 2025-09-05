@@ -6,7 +6,7 @@ import { cn } from '@/components/ui/core/styling';
 import { VerticalMenu, VerticalMenuItem } from '@/components/ui/vertical-menu';
 import { Button } from '@/components/ui/button';
 import { useStatus } from '@/context/status';
-import { useMenu, MenuId, VALID_MENUS } from '@/context/menu';
+import { useMenu, MenuId } from '@/context/menu';
 import { useUserData } from '@/context/userData';
 import { ConfigModal } from '@/components/config-modal';
 import {
@@ -34,6 +34,7 @@ import { TextInput } from '@/components/ui/text-input';
 import { toast } from 'sonner';
 import { Tooltip } from '@/components/ui/tooltip';
 import { useOptions } from '@/context/options';
+import { useMode } from '@/context/mode';
 
 type MenuItem = VerticalMenuItem & {
   id: MenuId;
@@ -71,6 +72,7 @@ export function MainSidebar() {
   }, [pathname]);
 
   const { status, error, loading } = useStatus();
+  const { mode } = useMode();
 
   const confirmClearConfig = useConfirmationDialog({
     title: 'Sign Out',
@@ -107,24 +109,32 @@ export function MainSidebar() {
       isCurrent: selectedMenu === 'filters',
       id: 'filters',
     },
-    {
-      name: 'Sorting',
-      iconType: BiSort,
-      isCurrent: selectedMenu === 'sorting',
-      id: 'sorting',
-    },
+    ...(mode === 'pro'
+      ? [
+          {
+            name: 'Sorting',
+            iconType: BiSort,
+            isCurrent: selectedMenu === 'sorting',
+            id: 'sorting',
+          },
+        ]
+      : []),
     {
       name: 'Formatter',
       iconType: BiPen,
       isCurrent: selectedMenu === 'formatter',
       id: 'formatter',
     },
-    {
-      name: 'Proxy',
-      iconType: BiServer,
-      isCurrent: selectedMenu === 'proxy',
-      id: 'proxy',
-    },
+    ...(mode === 'pro'
+      ? [
+          {
+            name: 'Proxy',
+            iconType: BiServer,
+            isCurrent: selectedMenu === 'proxy',
+            id: 'proxy',
+          },
+        ]
+      : []),
     {
       name: 'Miscellaneous',
       iconType: BiCog,

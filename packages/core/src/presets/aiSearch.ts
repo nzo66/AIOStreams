@@ -116,29 +116,25 @@ export class AISearchPreset extends Preset {
           min: 10,
         },
       },
-      {
-        id: 'tmdbApiKey',
-        name: 'TMDB API Key',
-        description:
-          'Get a free key from [TMDB](https://www.themoviedb.org/settings/api)',
-        type: 'password',
-        required: true,
-        constraints: {
-          min: 10,
-        },
-      },
-      {
-        id: 'advancedSettingsNote',
-        type: 'alert',
-        name: 'Advanced Settings',
-        description: 'The below settings are for advanced users only.',
-      },
+      // @deprecated TMDB API Key is now handled in the services menu
+      // {
+      //   id: 'tmdbApiKey',
+      //   name: 'TMDB API Key',
+      //   description:
+      //     'Get a free key from [TMDB](https://www.themoviedb.org/settings/api)',
+      //   type: 'password',
+      //   required: true,
+      //   constraints: {
+      //     min: 10,
+      //   },
+      // },
       {
         id: 'AiResponseCaching',
         name: 'AI Response Caching',
         description: 'Enable AI response caching',
         type: 'boolean',
         default: true,
+        showInNoobMode: false,
       },
       {
         id: 'rpdbApiKey',
@@ -146,6 +142,7 @@ export class AISearchPreset extends Preset {
         description: 'Optionally provide an RPDB API Key to use for posters',
         type: 'password',
         required: false,
+        showInNoobMode: false,
       },
       {
         id: 'language',
@@ -154,6 +151,7 @@ export class AISearchPreset extends Preset {
         type: 'select',
         options: this.languages,
         default: 'en-US',
+        showInNoobMode: false,
       },
       {
         id: 'model',
@@ -162,6 +160,7 @@ export class AISearchPreset extends Preset {
           'The Gemini model to use for AI Search. See available models at the [documentation](https://ai.google.dev/gemini-api/docs/models/gemini)',
         type: 'string',
         default: 'gemini-2.0-flash-lite',
+        showInNoobMode: false,
       },
       {
         id: 'numberOfRecommendations',
@@ -174,6 +173,7 @@ export class AISearchPreset extends Preset {
           min: 1,
           max: 30,
         },
+        showInNoobMode: false,
       },
       {
         id: 'socials',
@@ -218,7 +218,7 @@ export class AISearchPreset extends Preset {
   ): Promise<Addon> {
     return {
       name: options.name || this.METADATA.NAME,
-      manifestUrl: await this.generateManifestUrl(options),
+      manifestUrl: await this.generateManifestUrl(userData, options),
       enabled: true,
       library: false,
       resources: options.resources || this.METADATA.SUPPORTED_RESOURCES,
@@ -235,6 +235,7 @@ export class AISearchPreset extends Preset {
   }
 
   private static async generateManifestUrl(
+    userData: UserData,
     options: Record<string, any>
   ): Promise<string> {
     let url = (options.url || this.METADATA.URL).replace(/\/$/, '');
@@ -242,9 +243,17 @@ export class AISearchPreset extends Preset {
       return url;
     }
 
+    const tmdbApiKey =
+      options.tmdbApiKey || userData.tmdbApiKey || Env.TMDB_API_KEY;
+    if (!tmdbApiKey) {
+      throw new Error(
+        `${this.METADATA.NAME} requires a TMDB API Key to function. Please provide it in the services menu.`
+      );
+    }
+
     let config = {
       GeminiApiKey: options.geminiApiKey,
-      TmdbApiKey: options.tmdbApiKey,
+      TmdbApiKey: tmdbApiKey,
       RpdbApiKey: options.rpdbApiKey,
       RpdbPosterType: options.rpdbApiKey ? 'poster-default' : undefined,
       EnableRpdb: options.rpdbApiKey ? true : false,
@@ -255,7 +264,7 @@ export class AISearchPreset extends Preset {
 
     // request to /aisearch/encrypt with cache and config as body
     const cacheKey = `${JSON.stringify(config)}`;
-    let configId: string | undefined = configCache.get(cacheKey);
+    let configId: string | undefined = await configCache.get(cacheKey);
     if (configId) {
       return `${url}/aisearch/${configId}/manifest.json`;
     }
@@ -279,7 +288,7 @@ export class AISearchPreset extends Preset {
       });
       const result = schema.parse(data);
       configId = result.encryptedConfig;
-      configCache.set(cacheKey, configId, 365 * 24 * 60 * 60);
+      await configCache.set(cacheKey, configId, 365 * 24 * 60 * 60);
       return `${url}/aisearch/${configId}/manifest.json`;
     } catch (error) {
       throw new Error(

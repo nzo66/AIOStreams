@@ -1,5 +1,5 @@
 import { Stream, ParsedStream, Addon, ParsedFile } from '../db';
-import { constants, createLogger, FULL_LANGUAGE_MAPPING } from '../utils';
+import { constants, createLogger, Env, FULL_LANGUAGE_MAPPING } from '../utils';
 import FileParser from './file';
 const logger = createLogger('parser');
 
@@ -139,6 +139,23 @@ class StreamParser {
   }
 
   protected applyUrlModifications(url: string | undefined): string | undefined {
+    if (url && Env.STREAM_URL_MAPPINGS) {
+      let streamUrl;
+      try {
+        streamUrl = new URL(url);
+      } catch (e) {
+        return url;
+      }
+      for (const [key, value] of Object.entries(Env.STREAM_URL_MAPPINGS)) {
+        if (streamUrl.origin === key) {
+          const mappedUrl = new URL(value);
+          streamUrl.protocol = mappedUrl.protocol;
+          streamUrl.host = mappedUrl.host;
+          streamUrl.port = mappedUrl.port;
+        }
+      }
+      return streamUrl.toString();
+    }
     return url;
   }
 
@@ -306,7 +323,7 @@ class StreamParser {
     }
     const match = stream.description?.match(regex);
     if (match) {
-      return match[1];
+      return match[1].trim();
     }
 
     return undefined;
@@ -363,10 +380,6 @@ class StreamParser {
     service: ParsedStream['service'],
     currentParsedStream: ParsedStream
   ): ParsedStream['type'] {
-    if (stream.infoHash) {
-      return 'p2p';
-    }
-
     if (stream.url?.endsWith('.m3u8')) {
       return 'live';
     }
@@ -380,6 +393,10 @@ class StreamParser {
     // return 'http';
     if (stream.url) {
       return 'http';
+    }
+
+    if (stream.infoHash) {
+      return 'p2p';
     }
 
     if (stream.externalUrl) {

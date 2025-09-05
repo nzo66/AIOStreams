@@ -17,6 +17,7 @@ import TorboxSearchApi, {
 import { Torrent, convertDataToTorrents } from './torrent';
 import { TMDBMetadata } from '../../metadata/tmdb';
 import { calculateAbsoluteEpisode } from '../utils/general';
+import { TorboxApi } from '@torbox/torbox-api';
 
 const logger = createLogger('torbox-search');
 
@@ -35,15 +36,37 @@ abstract class SourceHandler {
   protected metadataCache = Cache.getInstance<string, TitleMetadata>(
     'torbox-search-metadata'
   );
+  protected instantAvailabilityCache = Cache.getInstance<string, boolean>(
+    'tb-search-usenet-instant'
+  );
 
   protected errorStreams: Stream[] = [];
+  protected readonly useCache: boolean;
 
-  constructor(protected searchApi: TorboxSearchApi) {}
+  constructor(
+    protected searchApi: TorboxSearchApi,
+    protected readonly searchUserEngines: boolean
+  ) {
+    this.useCache =
+      !this.searchUserEngines ||
+      Env.BUILTIN_TORBOX_SEARCH_CACHE_PER_USER_SEARCH_ENGINE;
+  }
 
   abstract getStreams(
     parsedId: ParsedId,
     userData: z.infer<typeof TorBoxSearchAddonUserDataSchema>
   ): Promise<Stream[]>;
+
+  protected getCacheKey(
+    parsedId: ParsedId,
+    type: 'torrent' | 'usenet'
+  ): string {
+    let cacheKey = `${type}:${parsedId.type}:${parsedId.id}:${parsedId.season}:${parsedId.episode}`;
+    if (this.searchUserEngines) {
+      cacheKey += `:${this.searchApi.apiKey}`;
+    }
+    return cacheKey;
+  }
 
   protected createStream(
     id: ParsedId,
@@ -83,7 +106,7 @@ abstract class SourceHandler {
           };
 
     const svcMeta = SERVICE_DETAILS[file.service.id];
-    const name = `[${svcMeta.shortName} ${file.service.cached ? '⚡' : '⏳'}] TorBox Search`;
+    const name = `[${svcMeta.shortName} ${file.service.cached ? '⚡' : '⏳'}${file.service.owned ? ' ☁️' : ''}] TorBox Search`;
     const description = `${torrent.title}\n${file.filename}\n${torrent.indexer ? `🔍 ${torrent.indexer}` : ''} ${torrent.seeders ? `👤 ${torrent.seeders}` : ''} ${torrent.age && torrent.age !== '0d' ? `🕒 ${torrent.age}` : ''}`;
 
     return {
@@ -113,7 +136,6 @@ abstract class SourceHandler {
 
 export class TorrentSourceHandler extends SourceHandler {
   private readonly debridServices: DebridService[];
-  private readonly searchUserEngines: boolean;
 
   constructor(
     searchApi: TorboxSearchApi,
@@ -121,11 +143,10 @@ export class TorrentSourceHandler extends SourceHandler {
     searchUserEngines: boolean,
     clientIp?: string
   ) {
-    super(searchApi);
+    super(searchApi, searchUserEngines);
     this.debridServices = services.map(
       (service) => new DebridService(service, clientIp)
     );
-    this.searchUserEngines = searchUserEngines;
   }
 
   async getStreams(
@@ -153,15 +174,35 @@ export class TorrentSourceHandler extends SourceHandler {
               }),
             ];
           default:
+            logger.error(`Error fetching torrents for ${type}:${id}: ${error}`);
             throw error;
         }
       }
+      logger.error(
+        `Unexpected error fetching torrents for ${type}:${id}: ${error}`
+      );
       throw error;
     }
 
     if (torrents.length === 0) return [];
 
-    const titleMetadata = this.metadataCache.get(`metadata:${type}:${id}`);
+    if (userData.onlyShowUserSearchResults) {
+      const userSearchResults = torrents.filter(
+        (torrent) => torrent.userSearch
+      );
+      logger.info(
+        `Filtered out ${torrents.length - userSearchResults.length} torrents that were not user search results`
+      );
+      if (userSearchResults.length > 0) {
+        torrents = userSearchResults;
+      } else {
+        return [];
+      }
+    }
+
+    const titleMetadata = await this.metadataCache.get(
+      `metadata:${type}:${id}`
+    );
     const filesByHash = await this.getAvailableFilesFromDebrid(
       torrents,
       parsedId,
@@ -204,10 +245,18 @@ export class TorrentSourceHandler extends SourceHandler {
     episode?: string,
     tmdbAccessToken?: string
   ): Promise<Torrent[]> {
-    const cacheKey = `torrents:${idType}:${id}:${season}:${episode}`;
-    const cachedTorrents = this.searchCache.get(cacheKey);
+    const cacheKey = this.getCacheKey(
+      { type: idType, id, season, episode },
+      'torrent'
+    );
 
-    if (cachedTorrents && !this.searchUserEngines) {
+    const cachedTorrents = await this.searchCache.get(cacheKey);
+
+    if (
+      cachedTorrents &&
+      (!this.searchUserEngines ||
+        Env.BUILTIN_TORBOX_SEARCH_CACHE_PER_USER_SEARCH_ENGINE)
+    ) {
       logger.info(`Found ${cachedTorrents.length} (cached) torrents for ${id}`);
       return cachedTorrents;
     }
@@ -218,6 +267,7 @@ export class TorrentSourceHandler extends SourceHandler {
       season,
       episode,
       metadata: 'true',
+      check_owned: 'true',
     });
 
     const torrents = convertDataToTorrents(data.torrents);
@@ -261,11 +311,22 @@ export class TorrentSourceHandler extends SourceHandler {
       );
     }
 
-    this.searchCache.set(
-      cacheKey,
-      torrents.filter((torrent) => !torrent.userSearch),
-      Env.BUILTIN_TORBOX_SEARCH_SEARCH_API_CACHE_TTL
-    );
+    if (torrents.length === 0) {
+      return [];
+    }
+
+    if (this.useCache) {
+      await this.searchCache.set(
+        cacheKey,
+        torrents.filter(
+          (torrent) =>
+            !torrent.userSearch ||
+            (this.searchUserEngines &&
+              Env.BUILTIN_TORBOX_SEARCH_CACHE_PER_USER_SEARCH_ENGINE)
+        ),
+        Env.BUILTIN_TORBOX_SEARCH_SEARCH_API_CACHE_TTL
+      );
+    }
 
     return torrents;
   }
@@ -304,12 +365,16 @@ export class TorrentSourceHandler extends SourceHandler {
 }
 
 export class UsenetSourceHandler extends SourceHandler {
-  private readonly searchUserEngines: boolean;
+  private readonly torboxApi: TorboxApi;
   private readonly clientIp?: string;
 
-  constructor(searchApi: TorboxSearchApi, searchUserEngines: boolean) {
-    super(searchApi);
-    this.searchUserEngines = searchUserEngines;
+  constructor(
+    searchApi: TorboxSearchApi,
+    torboxApi: TorboxApi,
+    searchUserEngines: boolean
+  ) {
+    super(searchApi, searchUserEngines);
+    this.torboxApi = torboxApi;
   }
 
   async getStreams(
@@ -317,8 +382,10 @@ export class UsenetSourceHandler extends SourceHandler {
     userData: z.infer<typeof TorBoxSearchAddonUserDataSchema>
   ): Promise<Stream[]> {
     const { type, id, season, episode } = parsedId;
-    const cacheKey = `usenet:${type}:${id}:${season}:${episode}`;
-    let torrents = this.searchCache.get(cacheKey);
+    const cacheKey = this.getCacheKey(parsedId, 'usenet');
+    let usingCachedSearch = false;
+
+    let torrents = await this.searchCache.get(cacheKey);
 
     if (!torrents) {
       const start = Date.now();
@@ -327,17 +394,23 @@ export class UsenetSourceHandler extends SourceHandler {
           season,
           episode,
           check_cache: 'true',
+          check_owned: 'true',
           search_user_engines: this.searchUserEngines ? 'true' : 'false',
         });
         torrents = convertDataToTorrents(data.nzbs);
-        this.searchCache.set(
-          cacheKey,
-          torrents,
-          Env.BUILTIN_TORBOX_SEARCH_SEARCH_API_CACHE_TTL
-        );
         logger.info(
           `Found ${torrents.length} NZBs for ${id} in ${getTimeTakenSincePoint(start)}`
         );
+        if (torrents.length === 0) {
+          return [];
+        }
+        if (this.useCache) {
+          await this.searchCache.set(
+            cacheKey,
+            torrents,
+            Env.BUILTIN_TORBOX_SEARCH_SEARCH_API_CACHE_TTL
+          );
+        }
       } catch (error) {
         if (error instanceof TorboxApiError) {
           switch (error.errorCode) {
@@ -357,7 +430,28 @@ export class UsenetSourceHandler extends SourceHandler {
         throw error;
       }
     } else {
+      usingCachedSearch = true;
       logger.info(`Found ${torrents.length} (cached) NZBs for ${id}`);
+    }
+
+    if (userData.onlyShowUserSearchResults) {
+      const userSearchResults = torrents.filter(
+        (torrent) => torrent.userSearch
+      );
+      logger.info(
+        `Filtered out ${torrents.length - userSearchResults.length} NZBs that were not user search results`
+      );
+      if (userSearchResults.length > 0) {
+        torrents = userSearchResults;
+      } else {
+        return [];
+      }
+    }
+
+    let instantAvailability: Map<string, boolean> | undefined;
+    // when using a cached search, we need to check instant availability separately
+    if (usingCachedSearch) {
+      instantAvailability = await this.getInstantAvailability(torrents);
     }
 
     return torrents.map((torrent) => {
@@ -366,7 +460,12 @@ export class UsenetSourceHandler extends SourceHandler {
         filename: torrent.title,
         size: torrent.size,
         index: -1,
-        service: { id: 'torbox', cached: torrent.cached ?? false },
+        service: {
+          id: 'torbox',
+          cached:
+            instantAvailability?.get(torrent.hash) ?? torrent.cached ?? false,
+          owned: torrent.owned ?? false,
+        },
       };
       return this.createStream(
         parsedId,
@@ -377,5 +476,62 @@ export class UsenetSourceHandler extends SourceHandler {
         episode
       );
     });
+  }
+
+  private async getInstantAvailability(
+    torrents: Torrent[]
+  ): Promise<Map<string, boolean> | undefined> {
+    const start = Date.now();
+    const instantAvailability = new Map<string, boolean>();
+
+    const torrentsToCheck: Torrent[] = [];
+    for (const torrent of torrents) {
+      const cachedStatus = await this.instantAvailabilityCache.get(
+        torrent.hash
+      );
+      if (cachedStatus !== undefined) {
+        instantAvailability.set(torrent.hash, cachedStatus);
+      } else {
+        torrentsToCheck.push(torrent);
+      }
+    }
+    if (torrentsToCheck.length > 0) {
+      logger.debug(
+        `Checking instant availability for ${torrentsToCheck.length} NZBs`
+      );
+      const data = await this.torboxApi.usenet.getUsenetCachedAvailability(
+        'v1',
+        {
+          hash: torrentsToCheck.map((torrent) => torrent.hash).join(','),
+          format: 'list',
+        }
+      );
+      if (!data.data?.success) {
+        throw new Error(
+          `Failed to check instant availability: ${data.data?.detail} - ${data.data?.error}`
+        );
+      }
+      if (!Array.isArray(data.data.data)) {
+        throw new Error('Invalid response from Torbox API');
+      }
+      for (const torrent of torrentsToCheck) {
+        const item = data.data.data.find((item) => item.hash === torrent.hash);
+        instantAvailability.set(torrent.hash, Boolean(item));
+        this.instantAvailabilityCache.set(
+          torrent.hash,
+          Boolean(item),
+          Env.BUILTIN_TORBOX_SEARCH_INSTANT_AVAILABILITY_CACHE_TTL
+        );
+      }
+    }
+    const cachedTorrents = torrents.filter(
+      (torrent) => instantAvailability.get(torrent.hash) ?? torrent.cached
+    );
+    logger.info(
+      `Checked instant availability for ${torrents.length} NZBs in ${getTimeTakenSincePoint(start)}: ${cachedTorrents.length} / ${torrents.length} cached (with ${
+        torrents.length - torrentsToCheck.length
+      } cached statuses)`
+    );
+    return instantAvailability;
   }
 }

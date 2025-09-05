@@ -1,4 +1,4 @@
-import { fetch, RequestInit } from 'undici';
+import { fetch, RequestInit, Response } from 'undici';
 import { z } from 'zod';
 import { TorBoxApiResponseSchema, TorBoxSearchApiDataSchema } from './schemas';
 import {
@@ -80,7 +80,7 @@ class TorboxSearchApi {
   private static readonly timeout =
     Env.BUILTIN_TORBOX_SEARCH_SEARCH_API_TIMEOUT;
 
-  constructor(private readonly apiKey: string) {}
+  constructor(public readonly apiKey: string) {}
 
   private createRequestLock<T>(
     key: string,
@@ -126,13 +126,21 @@ class TorboxSearchApi {
       'User-Agent': USER_AGENT,
     });
 
-    const response = await fetch(url.toString(), {
-      ...options,
-      method,
-      headers,
-      signal: AbortSignal.timeout(TorboxSearchApi.timeout),
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url.toString(), {
+        ...options,
+        method,
+        headers,
+        signal: AbortSignal.timeout(TorboxSearchApi.timeout),
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        throw new TorboxApiError('Request timed out', 408, 'TIMEOUT');
+      }
+      throw error;
+    }
 
     const data = await response.json();
 
@@ -154,6 +162,11 @@ class TorboxSearchApi {
         response.status,
         result.error
       );
+    }
+
+    if (Array.isArray(result.data) && result.data.length === 0) {
+      logger.warn(`API returned empty array for ${endpoint}.`);
+      logger.debug(JSON.stringify(result, null, 2));
     }
 
     return result.data as T;

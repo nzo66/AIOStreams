@@ -86,17 +86,28 @@ class StreamFilterer {
     };
 
     const start = Date.now();
-    const isRegexAllowed = FeatureControl.isRegexAllowed(this.userData);
+    const isRegexAllowed = await FeatureControl.isRegexAllowed(this.userData, [
+      ...(this.userData.excludedRegexPatterns ?? []),
+      ...(this.userData.requiredRegexPatterns ?? []),
+      ...(this.userData.includedRegexPatterns ?? []),
+    ]);
 
     let requestedMetadata: TMDBMetadataResponse | undefined;
-    if (this.userData.titleMatching?.enabled && TYPES.includes(type as any)) {
+    if (
+      (this.userData.titleMatching?.enabled ||
+        this.userData.yearMatching?.enabled) &&
+      TYPES.includes(type as any)
+    ) {
       try {
         requestedMetadata = await new TMDBMetadata({
           accessToken: this.userData.tmdbAccessToken,
+          apiKey: this.userData.tmdbApiKey,
         }).getMetadata(id, type as any);
         logger.info(`Fetched metadata for ${id}`, requestedMetadata);
       } catch (error) {
-        logger.error(`Error fetching titles for ${id}: ${error}`);
+        logger.warn(
+          `Error fetching titles for ${id}, title/year matching will not be performed: ${error}`
+        );
       }
     }
 
@@ -166,17 +177,49 @@ class StreamFilterer {
         return true;
       }
 
+      if (
+        yearMatchingOptions.requestTypes?.length &&
+        (!yearMatchingOptions.requestTypes.includes(type) ||
+          (isAnime && !yearMatchingOptions.requestTypes.includes('anime')))
+      ) {
+        return true;
+      }
+
+      if (
+        yearMatchingOptions.addons?.length &&
+        !yearMatchingOptions.addons.includes(stream.addon.preset.id)
+      ) {
+        return true;
+      }
+
       const streamYear = stream.parsedFile?.year;
       if (!streamYear && type === 'movie') {
         // only filter out movies without a year as series results usually don't include a year
         return false;
       }
-      return streamYear
-        ? requestedMetadata.year === streamYear ||
-            (yearMatchingOptions.tolerance &&
-              Math.abs(Number(requestedMetadata.year) - Number(streamYear)) <=
-                yearMatchingOptions.tolerance)
-        : true;
+      if (!streamYear) {
+        // non-movie results without a year can be kept in
+        return true;
+      }
+      // streamYear can be a string like "2004" or "2012-2020"
+      const requestedYear = Number(requestedMetadata.year);
+      let streamYearRange: [number, number] | undefined;
+      if (streamYear && streamYear.includes('-')) {
+        const [min, max] = streamYear.split('-').map(Number);
+        streamYearRange = [min, max];
+      } else {
+        streamYearRange = [Number(streamYear), Number(streamYear)];
+      }
+
+      let tolerance = yearMatchingOptions.tolerance ?? 1;
+      streamYearRange[0] = streamYearRange[0] - tolerance;
+      streamYearRange[1] = streamYearRange[1] + tolerance;
+
+      // requested year should be within the stream year range
+      return (
+        requestedYear >= streamYearRange[0] &&
+        requestedYear <= streamYearRange[1]
+      );
     };
 
     const performSeasonEpisodeMatch = (stream: ParsedStream) => {
@@ -402,6 +445,36 @@ class StreamFilterer {
         includedReasons.passthrough.details[stream.addon.name] =
           (includedReasons.passthrough.details[stream.addon.name] || 0) + 1;
         return true;
+      }
+
+      // Temporarily add in our fake visual tags used for sorting/filtering
+      // HDR+DV
+      if (
+        file?.visualTags?.some((tag) => tag.startsWith('HDR')) &&
+        file?.visualTags?.some((tag) => tag.startsWith('DV'))
+      ) {
+        const hdrIndex = file?.visualTags?.findIndex((tag) =>
+          tag.startsWith('HDR')
+        );
+        const dvIndex = file?.visualTags?.findIndex((tag) =>
+          tag.startsWith('DV')
+        );
+        const insertIndex = Math.min(hdrIndex, dvIndex);
+        file?.visualTags?.splice(insertIndex, 0, 'HDR+DV');
+      }
+      // DV Only
+      if (
+        file?.visualTags?.some((tag) => tag.startsWith('DV')) &&
+        !file?.visualTags?.some((tag) => tag.startsWith('HDR'))
+      ) {
+        file?.visualTags?.push('DV Only');
+      }
+      // HDR Only
+      if (
+        file?.visualTags?.some((tag) => tag.startsWith('HDR')) &&
+        !file?.visualTags?.some((tag) => tag.startsWith('DV'))
+      ) {
+        file?.visualTags?.push('HDR Only');
       }
 
       // carry out include checks first
@@ -693,22 +766,6 @@ class StreamFilterer {
         return false;
       }
 
-      // temporarily add HDR+DV to visual tags list if both HDR and DV are present
-      // to allow HDR+DV option in userData to work
-      if (
-        file?.visualTags?.some((tag) => tag.startsWith('HDR')) &&
-        file?.visualTags?.some((tag) => tag.startsWith('DV'))
-      ) {
-        const hdrIndex = file?.visualTags?.findIndex((tag) =>
-          tag.startsWith('HDR')
-        );
-        const dvIndex = file?.visualTags?.findIndex((tag) =>
-          tag.startsWith('DV')
-        );
-        const insertIndex = Math.min(hdrIndex, dvIndex);
-        file?.visualTags?.splice(insertIndex, 0, 'HDR+DV');
-      }
-
       if (
         this.userData.excludedVisualTags?.some((tag) =>
           (file?.visualTags.length ? file.visualTags : ['Unknown']).includes(
@@ -736,14 +793,13 @@ class StreamFilterer {
           )
         )
       ) {
-        const tag = this.userData.requiredVisualTags.find((tag) =>
-          (file?.visualTags.length ? file.visualTags : ['Unknown']).includes(
-            tag
-          )
-        );
         skipReasons.requiredVisualTag.total++;
-        skipReasons.requiredVisualTag.details[tag!] =
-          (skipReasons.requiredVisualTag.details[tag!] || 0) + 1;
+        skipReasons.requiredVisualTag.details[
+          `${this.userData.requiredVisualTags.join(', ')}`
+        ] =
+          (skipReasons.requiredVisualTag.details[
+            `${this.userData.requiredVisualTags.join(', ')}`
+          ] || 0) + 1;
         return false;
       }
 

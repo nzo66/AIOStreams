@@ -68,7 +68,9 @@ export class UserRepository {
 
       const { success, data } = encryptString(password);
       if (success === false) {
-        return Promise.reject(constants.ErrorCode.USER_ERROR);
+        return Promise.reject(
+          new APIError(constants.ErrorCode.ENCRYPTION_ERROR)
+        );
       }
 
       const encryptedPassword = data;
@@ -91,7 +93,7 @@ export class UserRepository {
         if (error instanceof APIError) {
           throw error;
         }
-        throw new APIError(constants.ErrorCode.INTERNAL_SERVER_ERROR);
+        throw new APIError(constants.ErrorCode.DATABASE_ERROR);
       } finally {
         if (tx && !committed) {
           await tx.rollback();
@@ -108,7 +110,7 @@ export class UserRepository {
       return result.length > 0;
     } catch (error) {
       logger.error(`Error checking user existence: ${error}`);
-      return Promise.reject(constants.ErrorCode.USER_ERROR);
+      return Promise.reject(new APIError(constants.ErrorCode.DATABASE_ERROR));
     }
   }
 
@@ -189,9 +191,7 @@ export class UserRepository {
       logger.error(
         `Error retrieving user ${uuid}: ${error instanceof Error ? error.message : String(error)}`
       );
-      return Promise.reject(
-        new APIError(constants.ErrorCode.INTERNAL_SERVER_ERROR)
-      );
+      return Promise.reject(new APIError(constants.ErrorCode.DATABASE_ERROR));
     }
   }
 
@@ -261,7 +261,7 @@ export class UserRepository {
         if (error instanceof APIError) {
           throw error;
         }
-        throw new APIError(constants.ErrorCode.INTERNAL_SERVER_ERROR);
+        throw new APIError(constants.ErrorCode.DATABASE_ERROR);
       } finally {
         if (tx && !committed) {
           await tx.rollback();
@@ -276,7 +276,7 @@ export class UserRepository {
       return result.length;
     } catch (error) {
       logger.error(`Error getting user count: ${error}`);
-      return Promise.reject(new APIError(constants.ErrorCode.USER_ERROR));
+      return Promise.reject(new APIError(constants.ErrorCode.DATABASE_ERROR));
     }
   }
 
@@ -313,7 +313,7 @@ export class UserRepository {
         if (error instanceof APIError) {
           throw error;
         }
-        throw new APIError(constants.ErrorCode.INTERNAL_SERVER_ERROR);
+        throw new APIError(constants.ErrorCode.DATABASE_ERROR);
       } finally {
         if (tx && !committed) {
           await tx.rollback();
@@ -338,7 +338,7 @@ export class UserRepository {
       return deletedCount;
     } catch (error) {
       logger.error('Failed to prune users:', error);
-      return Promise.reject(new APIError(constants.ErrorCode.USER_ERROR));
+      return Promise.reject(new APIError(constants.ErrorCode.DATABASE_ERROR));
     }
   }
 
@@ -365,7 +365,7 @@ export class UserRepository {
     const { success, data, error } = encryptString(configString, key);
 
     if (!success) {
-      return Promise.reject(new APIError(constants.ErrorCode.USER_ERROR));
+      return Promise.reject(new APIError(constants.ErrorCode.ENCRYPTION_ERROR));
     }
 
     return { encryptedConfig: data, salt: saltUsed };
@@ -384,7 +384,7 @@ export class UserRepository {
     } = decryptString(encryptedConfig, key);
 
     if (!success || !decryptedString) {
-      return Promise.reject(new APIError(constants.ErrorCode.USER_ERROR));
+      return Promise.reject(new APIError(constants.ErrorCode.ENCRYPTION_ERROR));
     }
 
     return JSON.parse(decryptedString);
@@ -392,7 +392,13 @@ export class UserRepository {
 
   private static async generateUUID(count: number = 1): Promise<string> {
     if (count > 10) {
-      return Promise.reject(new APIError(constants.ErrorCode.USER_ERROR));
+      return Promise.reject(
+        new APIError(
+          constants.ErrorCode.DATABASE_ERROR,
+          undefined,
+          'Failed to generate a unique UUID'
+        )
+      );
     }
 
     const uuid = generateUUID();

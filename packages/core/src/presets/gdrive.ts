@@ -194,7 +194,7 @@ export class GDrivePreset extends Preset {
       includeAudioFiles: options.includeAudioFiles ?? false,
       tmdbReadAccessToken:
         options.metadataSource === 'tmdb'
-          ? userData.tmdbAccessToken
+          ? userData.tmdbAccessToken || Env.TMDB_ACCESS_TOKEN
           : undefined,
     });
     return `${this.METADATA.URL}/${config}/manifest.json`;

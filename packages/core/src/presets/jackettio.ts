@@ -3,6 +3,7 @@ import { baseOptions, Preset } from './preset';
 import { Env } from '../utils';
 import { constants, ServiceId } from '../utils';
 import { StreamParser } from '../parser';
+import { StremThruPreset } from './stremthru';
 
 class JackettioStreamParser extends StreamParser {
   override applyUrlModifications(url: string | undefined): string | undefined {
@@ -28,11 +29,11 @@ class JackettioStreamParser extends StreamParser {
       }
       return urlObj.toString();
     }
-    return url;
+    return super.applyUrlModifications(url);
   }
 }
 
-export class JackettioPreset extends Preset {
+export class JackettioPreset extends StremThruPreset {
   static override getParser(): typeof StreamParser {
     return JackettioStreamParser;
   }
@@ -55,7 +56,8 @@ export class JackettioPreset extends Preset {
       ...baseOptions(
         'Jackettio',
         supportedResources,
-        Env.DEFAULT_JACKETTIO_TIMEOUT
+        Env.DEFAULT_JACKETTIO_TIMEOUT,
+        Env.JACKETTIO_URL
       ),
       {
         id: 'services',
@@ -64,6 +66,7 @@ export class JackettioPreset extends Preset {
           'Optionally override the services that are used. If not specified, then the services that are enabled and supported will be used.',
         type: 'multi-select',
         required: false,
+        showInNoobMode: false,
         options: supportedServices.map((service) => ({
           value: service,
           label: constants.SERVICE_DETAILS[service].name,
@@ -86,7 +89,7 @@ export class JackettioPreset extends Preset {
       ID: 'jackettio',
       NAME: 'Jackettio',
       LOGO: 'https://raw.githubusercontent.com/Jackett/Jackett/bbea5febd623f6e536e11aa1fa8d6674d8d4043f/src/Jackett.Common/Content/jacket_medium.png',
-      URL: Env.JACKETTIO_URL,
+      URL: Env.JACKETTIO_URL[0],
       TIMEOUT: Env.DEFAULT_JACKETTIO_TIMEOUT || Env.DEFAULT_TIMEOUT,
       USER_AGENT: Env.DEFAULT_JACKETTIO_USER_AGENT || Env.DEFAULT_USER_AGENT,
       SUPPORTED_SERVICES: supportedServices,
@@ -168,12 +171,7 @@ export class JackettioPreset extends Preset {
       priotizePackTorrents: 2,
       excludeKeywords: [],
       debridId: serviceId,
-      debridApiKey: this.getServiceCredential(serviceId, userData, {
-        [constants.OFFCLOUD_SERVICE]: (credentials: any) =>
-          `${credentials.email}:${credentials.password}`,
-        [constants.PIKPAK_SERVICE]: (credentials: any) =>
-          `${credentials.email}:${credentials.password}`,
-      }),
+      debridApiKey: this.getServiceCredential(serviceId, userData),
       hideUncached: false,
       sortCached: [
         ['quality', true],

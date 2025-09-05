@@ -24,7 +24,7 @@ export const loggerMiddleware = (
     ip: req.userIp ? maskSensitiveInfo(req.userIp) : undefined,
     contentType: req.get('content-type'),
     userAgent: req.get('user-agent'),
-    formatted: `${req.method} ${makeUrlLogSafe(req.originalUrl)}${req.userIp ? ` - ${maskSensitiveInfo(req.userIp)}` : ''} - ${req.get('content-type')} - ${req.get('user-agent')}`,
+    formatted: `${req.method} ${makeUrlLogSafe(req.originalUrl)}${req.userIp ? ` - u:${maskSensitiveInfo(req.userIp)}` : ''}${req.requestIp ? ` - r:${maskSensitiveInfo(req.requestIp)}` : ''} - ${req.get('content-type')} - ${req.get('user-agent')}`,
   });
 
   // Capture response finish event
@@ -42,7 +42,7 @@ export const loggerMiddleware = (
       ip: req.userIp ? maskSensitiveInfo(req.userIp) : undefined,
       contentType: res.get('content-type'),
       contentLength: res.get('content-length'),
-      formatted: `${req.method} ${makeUrlLogSafe(req.originalUrl)}${req.userIp ? ` - ${maskSensitiveInfo(req.userIp)}` : ''} - Response: ${res.statusCode} - ${duration}`,
+      formatted: `${req.method} ${makeUrlLogSafe(req.originalUrl)}${req.userIp ? ` - u: ${maskSensitiveInfo(req.userIp)}` : ''}${req.requestIp ? ` - r: ${maskSensitiveInfo(req.requestIp)}` : ''} - Response: ${res.statusCode} - ${duration}`,
     });
   });
 

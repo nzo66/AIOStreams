@@ -19,13 +19,14 @@
     "moment-timezone": "^0.5.48",
     "parse-torrent-title": "github:TheBeastLT/parse-torrent-title",
     "pg": "^8.16.0",
+    "redis": "^5.8.2",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7",
     "stremthru": "^0.8.0",
     "super-regex": "^1.0.0",
     "undici": "^7.2.3",
     "winston": "^3.17.0",
-    "zod": "^3.24.4"
+    "zod": "^4.1.5"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

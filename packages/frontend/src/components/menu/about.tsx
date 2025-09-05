@@ -28,7 +28,10 @@ import { SiGithubsponsors, SiKofi } from 'react-icons/si';
 import { useUserData } from '@/context/userData';
 import { toast } from 'sonner';
 import { useMenu } from '@/context/menu';
+import { useMode } from '@/context/mode';
 import { DonationModal } from '../shared/donation-modal';
+import { ModeSwitch } from '../ui/mode-switch/mode-switch';
+import { ModeSelectModal } from '../shared/mode-select-modal';
 import {
   Card,
   CardHeader,
@@ -55,6 +58,8 @@ function Content() {
   const { status, loading, error } = useStatus();
   const { nextMenu } = useMenu();
   const { userData, setUserData } = useUserData();
+  const { mode, setMode, isFirstTime } = useMode();
+  const modeSelectModal = useDisclosure(isFirstTime);
   const addonName =
     userData.addonName || status?.settings?.addonName || 'AIOStreams';
   const defaultDescription = `
@@ -176,17 +181,24 @@ function Content() {
             </div>
 
             <div className="flex items-center justify-center mb-6">
-              <Button
-                intent="white"
-                size="lg"
-                rounded
-                // className="px-8 py-2.5 font-semibold shadow-lg hover:scale-105 transition-transform duration-200"
-                onClick={() => {
-                  nextMenu();
-                }}
-              >
-                Configure
-              </Button>
+              <div className="flex flex-col gap-4 items-center">
+                <Button
+                  intent="white"
+                  size="lg"
+                  rounded
+                  onClick={() => {
+                    nextMenu();
+                  }}
+                >
+                  Configure
+                </Button>
+                <ModeSwitch
+                  value={mode}
+                  onChange={setMode}
+                  size="md"
+                  className="w-[280px]"
+                />
+              </div>
             </div>
 
             <div className="relative">
@@ -306,6 +318,10 @@ function Content() {
         currentName={addonName}
         currentLogo={userData.addonLogo}
         currentDescription={userData.addonDescription}
+      />
+      <ModeSelectModal
+        open={modeSelectModal.isOpen}
+        onOpenChange={modeSelectModal.toggle}
       />
     </>
   );

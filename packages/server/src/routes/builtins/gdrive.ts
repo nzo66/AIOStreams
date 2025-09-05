@@ -9,7 +9,7 @@ const logger = createLogger('server');
 router.use(stremioStreamRateLimiter);
 
 router.get(
-  '/:encodedConfig?/manifest.json',
+  '{/:encodedConfig}/manifest.json',
   async (req: Request, res: Response, next: NextFunction) => {
     const { encodedConfig } = req.params;
     const config = encodedConfig
@@ -48,7 +48,7 @@ router.get(
 );
 
 router.get(
-  '/:encodedConfig/catalog/:type/:id/:extras?.json',
+  '/:encodedConfig/catalog/:type/:id{/:extras}.json',
   async (req: Request, res: Response, next: NextFunction) => {
     const { encodedConfig, type, id, extras } = req.params;
     const config = JSON.parse(

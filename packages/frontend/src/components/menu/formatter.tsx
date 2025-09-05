@@ -95,11 +95,7 @@ function FormatterPreviewBox({
 
 function Content() {
   const { userData, setUserData } = useUserData();
-  const [selectedFormatter, setSelectedFormatter] =
-    useState<constants.FormatterType>(
-      (userData.formatter?.id as constants.FormatterType) ||
-        formatterChoices[0].id
-    );
+
   const [formattedStream, setFormattedStream] = useState<{
     name: string;
     description: string;
@@ -138,46 +134,21 @@ function Content() {
   );
   const [message, setMessage] = useState('This is a message');
 
-  // Custom formatter state (to avoid losing one field when editing the other)
-  const [customName, setCustomName] = useState(
-    userData.formatter?.definition?.name || ''
-  );
-  const [customDescription, setCustomDescription] = useState(
-    userData.formatter?.definition?.description || ''
-  );
-
-  // Keep userData in sync with custom formatter fields
-  useEffect(() => {
-    if (selectedFormatter === constants.CUSTOM_FORMATTER) {
-      setUserData((prev) => ({
-        ...prev,
-        formatter: {
-          id: constants.CUSTOM_FORMATTER,
-          definition: { name: customName, description: customDescription },
-        },
-      }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customName, customDescription, selectedFormatter]);
-
-  const handleFormatterChange = (value: string) => {
-    setSelectedFormatter(value as constants.FormatterType);
-    if (value === constants.CUSTOM_FORMATTER) {
-      setCustomName(userData.formatter?.definition?.name || '');
-      setCustomDescription(userData.formatter?.definition?.description || '');
-    }
+  const handleFormatterChange = (
+    formatterId?: string,
+    name?: string,
+    description?: string
+  ) => {
     setUserData((prev) => ({
       ...prev,
       formatter: {
-        id: value as constants.FormatterType,
-        definition:
-          value === constants.CUSTOM_FORMATTER
-            ? {
-                name: userData.formatter?.definition?.name || '',
-                description: userData.formatter?.definition?.description || '',
-              }
-            : // keep definitions even when switching to a non-custom formatter
-              prev.formatter?.definition,
+        ...prev.formatter,
+        id: (formatterId || prev.formatter.id) as constants.FormatterType,
+        definition: {
+          name: name ?? prev.formatter.definition?.name ?? '',
+          description:
+            description ?? prev.formatter.definition?.description ?? '',
+        },
       },
     }));
   };
@@ -229,39 +200,14 @@ function Content() {
         proxied,
         message,
       };
-      let data;
-      if (selectedFormatter === constants.CUSTOM_FORMATTER) {
-        const res = await UserConfigAPI.formatStream(
-          stream,
-          selectedFormatter,
-          {
-            name: customName,
-            description: customDescription,
-          },
-          userData.addonName
-        );
-        if (!res.success) {
-          toast.error(res.error?.message || 'Failed to format stream');
-          return;
-        }
-        data = res.data;
-      } else {
-        const res = await UserConfigAPI.formatStream(
-          stream,
-          selectedFormatter,
-          undefined,
-          userData.addonName
-        );
-        if (!res.success) {
-          toast.error(res.error?.message || 'Failed to format stream');
-          return;
-        }
-        data = res.data;
+      const data = await UserConfigAPI.formatStream(stream, userData);
+      if (!data.success) {
+        throw new Error(data.error?.message || 'Failed to format stream');
       }
-      setFormattedStream(data ?? null);
+      setFormattedStream(data.data ?? null);
     } catch (error) {
       console.error('Error formatting stream:', error);
-      toast.error('Failed to format stream');
+      toast.error(`Failed to format stream: ${error}`);
     } finally {
       setIsFormatting(false);
     }
@@ -280,12 +226,10 @@ function Content() {
     fileSize,
     folderSize,
     proxied,
-    selectedFormatter,
     isFormatting,
-    customName,
-    customDescription,
     regexMatched,
     message,
+    userData,
   ]);
 
   useEffect(() => {
@@ -305,10 +249,8 @@ function Content() {
     fileSize,
     folderSize,
     proxied,
-    selectedFormatter,
-    customName,
     regexMatched,
-    customDescription,
+    userData,
     message,
   ]);
 
@@ -330,22 +272,24 @@ function Content() {
         description="Choose how your streams should be formatted"
       >
         <Select
-          value={selectedFormatter}
-          onValueChange={handleFormatterChange}
+          value={userData.formatter.id}
+          onValueChange={(value) =>
+            handleFormatterChange(value as constants.FormatterType)
+          }
           options={formatterChoices.map((f) => ({
             label: f.name,
             value: f.id,
           }))}
         />
         <p className="text-sm text-muted-foreground mt-2">
-          {selectedFormatter !== constants.CUSTOM_FORMATTER &&
-            formatterChoices.find((f) => f.id === selectedFormatter)
+          {userData.formatter.id !== constants.CUSTOM_FORMATTER &&
+            formatterChoices.find((f) => f.id === userData.formatter.id)
               ?.description}
         </p>
       </SettingsCard>
 
       {/* Custom Formatter Definition in its own SettingsCard, only if custom is selected */}
-      {selectedFormatter === constants.CUSTOM_FORMATTER && (
+      {userData.formatter.id === constants.CUSTOM_FORMATTER && (
         <SettingsCard
           title="Custom Formatter"
           description="Define your own formatter"
@@ -378,8 +322,10 @@ function Content() {
                 Name Template
               </label>
               <Textarea
-                value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
+                value={userData.formatter.definition?.name || ''}
+                onValueChange={(value) =>
+                  handleFormatterChange(constants.CUSTOM_FORMATTER, value)
+                }
                 placeholder="Enter a template for the stream name"
               />
             </div>
@@ -388,8 +334,14 @@ function Content() {
                 Description Template
               </label>
               <Textarea
-                value={customDescription}
-                onChange={(e) => setCustomDescription(e.target.value)}
+                value={userData.formatter.definition?.description || ''}
+                onValueChange={(value) =>
+                  handleFormatterChange(
+                    constants.CUSTOM_FORMATTER,
+                    undefined,
+                    value
+                  )
+                }
                 placeholder="Enter a template for the stream description"
               />
             </div>

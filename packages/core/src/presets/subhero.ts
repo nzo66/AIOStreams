@@ -76,6 +76,10 @@ export class SubHeroPreset extends Preset {
         value: lang,
       };
     });
+    languages.push({
+      label: 'Portuguese (Brazil)',
+      value: 'pb',
+    });
 
     const options: Option[] = [
       ...baseOptions(

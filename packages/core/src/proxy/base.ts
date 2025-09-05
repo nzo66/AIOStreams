@@ -69,7 +69,7 @@ export abstract class BaseProxy {
     }
 
     const cacheKey = `${this.config.id}:${this.config.url}:${this.config.credentials}`;
-    const cachedPublicIp = cache ? cache.get(cacheKey) : null;
+    const cachedPublicIp = cache ? await cache.get(cacheKey) : null;
     if (cachedPublicIp) {
       logger.debug('Returning cached public IP');
       return cachedPublicIp;
@@ -99,7 +99,7 @@ export abstract class BaseProxy {
     const publicIp = this.getPublicIpFromResponse(data);
 
     if (publicIp && cache) {
-      cache.set(cacheKey, publicIp, Env.PROXY_IP_CACHE_TTL);
+      await cache.set(cacheKey, publicIp, Env.PROXY_IP_CACHE_TTL);
     } else {
       logger.error(
         `Proxy did not respond with a public IP. Response: ${JSON.stringify(data)}`

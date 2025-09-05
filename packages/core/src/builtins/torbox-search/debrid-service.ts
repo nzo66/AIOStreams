@@ -28,6 +28,7 @@ export interface DebridFile {
   service: {
     id: ServiceId;
     cached: boolean;
+    owned: boolean;
   };
 }
 
@@ -75,7 +76,7 @@ export class DebridService {
       const cacheKey = getSimpleTextHash(
         `${this.serviceConfig.id}:${torrent.hash}`
       );
-      const cached = this.debridCache.get(cacheKey);
+      const cached = await this.debridCache.get(cacheKey);
 
       if (cached && cached.length > 0) {
         cachedResults.push(...cached);
@@ -86,9 +87,9 @@ export class DebridService {
 
     let newResults: DebridFile[] = [];
 
+    const start = Date.now();
     if (torrentsToCheck.length > 0) {
       try {
-        const start = Date.now();
         const instantAvailability = await this.debridInterface.checkMagnets(
           torrentsToCheck.map((t) => t.hash),
           id
@@ -99,30 +100,33 @@ export class DebridService {
             (avail) => avail.hash === torrent.hash
           );
 
+          let file;
+
           if (!item) {
             logger.debug(
-              `[${this.serviceConfig.id}] Hash ${torrent.hash} not found in instant availability response`
+              `[${this.serviceConfig.id}] Hash ${torrent.hash} (${torrent.title}) not found in instant availability response`
             );
-            continue;
-          }
 
-          const file =
-            item.files && item.files.length > 0
-              ? findMatchingFileInTorrent(
-                  item.files.map((file) => ({
-                    ...file,
-                    parsed: FileParser.parse(file.name),
-                    isVideo: isVideoFile(file.name),
-                  })),
-                  torrent.fileIdx,
-                  undefined,
-                  titleMetadata?.titles,
-                  season,
-                  episode,
-                  absoluteEpisode,
-                  false
-                )
-              : { name: torrent.title, size: torrent.size, index: -1 }; // Fallback for torrents with no file list
+            file = { name: torrent.title, size: torrent.size, index: -1 };
+          } else {
+            file =
+              item.files && item.files.length > 0
+                ? findMatchingFileInTorrent(
+                    item.files.map((file) => ({
+                      ...file,
+                      parsed: FileParser.parse(file.name),
+                      isVideo: isVideoFile(file.name),
+                    })),
+                    torrent.fileIdx,
+                    undefined,
+                    titleMetadata?.titles,
+                    season,
+                    episode,
+                    absoluteEpisode,
+                    false
+                  )
+                : { name: torrent.title, size: torrent.size, index: -1 }; // Fallback for torrents with no file list
+          }
 
           if (file) {
             const result: DebridFile = {
@@ -132,7 +136,11 @@ export class DebridService {
               index: file.index !== -1 ? file.index : undefined,
               service: {
                 id: this.serviceConfig.id,
-                cached: item.status === 'cached',
+                cached: item?.status === 'cached',
+                owned:
+                  this.serviceConfig.id === 'torbox'
+                    ? (torrent.owned ?? false)
+                    : false,
               },
             };
             newResults.push(result);
@@ -148,9 +156,6 @@ export class DebridService {
             );
           }
         }
-        logger.info(
-          `[${this.serviceConfig.id}] Checked ${torrentsToCheck.length} uncached magnets in ${getTimeTakenSincePoint(start)}`
-        );
       } catch (error) {
         if (error instanceof StremThruError) {
           logger.error(
@@ -180,6 +185,15 @@ export class DebridService {
         return [];
       }
     }
+
+    // count number of cached results
+    const cachedCount = [...cachedResults, ...newResults].filter(
+      (result) => result.service.cached
+    ).length;
+
+    logger.debug(
+      `[${this.serviceConfig.id}] Checked ${torrents.length} magnets in ${getTimeTakenSincePoint(start)}. ${cachedCount} / ${torrents.length} cached`
+    );
 
     return [...cachedResults, ...newResults];
   }

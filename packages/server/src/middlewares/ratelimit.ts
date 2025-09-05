@@ -1,9 +1,16 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { MemoryStore, ipKeyGenerator } from 'express-rate-limit';
 import { Request, Response, NextFunction } from 'express';
+import { RedisStore } from 'rate-limit-redis';
+import {
+  Env,
+  createLogger,
+  constants,
+  APIError,
+  Cache,
+  REDIS_PREFIX,
+} from '@aiostreams/core';
 
-import { Env, createLogger, constants, APIError } from '@aiostreams/core';
-
-const logger = createLogger('ratelimit');
+const logger = createLogger('server');
 
 const createRateLimiter = (
   windowMs: number,
@@ -13,13 +20,24 @@ const createRateLimiter = (
   if (Env.DISABLE_RATE_LIMITS) {
     return (req: Request, res: Response, next: NextFunction) => next();
   }
+  const redisClient = Env.REDIS_URI ? Cache.getRedisClient() : undefined;
+  const store = redisClient
+    ? new RedisStore({
+        prefix: `${REDIS_PREFIX}rate-limit:`,
+        sendCommand: (...args: string[]) => redisClient.sendCommand(args),
+      })
+    : new MemoryStore();
   return rateLimit({
     windowMs,
     max: maxRequests,
     standardHeaders: true,
     legacyHeaders: false,
-    // Use a unique store key for each rate limiter
-    keyGenerator: (req: Request) => `${prefix}:${req.userIp || req.ip || ''}`,
+    store,
+    keyGenerator: (req: Request) => {
+      const ip = req.requestIp || req.userIp || req.ip;
+      const ipKey = ip ? ipKeyGenerator(ip) : '';
+      return prefix + ':' + ipKey;
+    },
     handler: (
       req: Request,
       res: Response,
@@ -30,7 +48,7 @@ const createRateLimiter = (
         ? req.rateLimit.resetTime.getTime() - new Date().getTime()
         : 0;
       logger.warn(
-        `Rate limit exceeded for IP: ${req.userIp || req.ip} - ${
+        `${prefix} rate limit exceeded for IP: ${req.requestIp || req.userIp || req.ip} - ${
           options.message
         } - Time remaining: ${timeRemaining}ms`
       );

@@ -23,7 +23,7 @@
     <a href="https://hub.docker.com/r/viren070/aiostreams">
         <img src="https://img.shields.io/docker/pulls/viren070/aiostreams?style=for-the-badge&logo=docker" alt="Docker Pulls">
     </a>
-    <a href="https://discord.gg/aiostreams">
+    <a href="https://discord.viren070.me">
         <img src="https://img.shields.io/badge/Discord-Join_Chat-7289DA?logo=discord&logoColor=white&style=for-the-badge" alt="Discord Server">
     </a>
 </p>
@@ -98,7 +98,7 @@ Take control of your Stremio home page. AIOStreams lets you manage catalogs from
 <p align="center">
   <sub>
     This format was created by one of our community members in the 
-    <a href="https://discord.gg/aiostreams">Discord Server</a>
+    <a href="https://discord.viren070.me">Discord Server</a>
   </sub>
 </p>
 

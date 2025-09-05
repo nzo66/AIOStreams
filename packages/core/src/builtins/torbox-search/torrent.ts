@@ -16,6 +16,7 @@ export interface Torrent {
   nzb?: string;
   userSearch?: boolean;
   cached?: boolean;
+  owned?: boolean;
   availableFiles?: DebridFile[];
 }
 
@@ -35,5 +36,6 @@ export function convertDataToTorrents(
       file.last_known_seeders !== -1 ? file.last_known_seeders : undefined,
     nzb: file.nzb ?? undefined,
     cached: file.cached ?? undefined,
+    owned: file.owned ?? undefined,
   }));
 }

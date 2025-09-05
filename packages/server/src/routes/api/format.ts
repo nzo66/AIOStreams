@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createResponse } from '../../utils/responses';
-import { createLogger, UserRepository } from '@aiostreams/core';
+import { createLogger, UserData, UserDataSchema } from '@aiostreams/core';
 import {
   createFormatter,
   ParsedStreamSchema,
@@ -15,24 +15,26 @@ router.use(formatApiRateLimiter);
 const logger = createLogger('server');
 
 router.post('/', (req: Request, res: Response) => {
-  const { success, error, data } = ParsedStreamSchema.safeParse(
-    req.body.stream
-  );
-  if (!success) {
-    logger.error('Invalid stream', { error });
+  const { userData, stream } = req.body;
+  const {
+    success: streamSuccess,
+    error: streamError,
+    data: streamData,
+  } = ParsedStreamSchema.safeParse(stream);
+  if (!streamSuccess) {
+    logger.error('Invalid stream', { error: streamError });
     throw new APIError(constants.ErrorCode.FORMAT_INVALID_STREAM);
   }
-  const { formatter, definition, addonName } = req.body;
-  if (!formatter) {
-    throw new APIError(constants.ErrorCode.FORMAT_INVALID_FORMATTER);
-  } else if (!constants.FORMATTERS.includes(formatter)) {
+  const {
+    success: userDataSuccess,
+    error: userDataError,
+    data: userDataData,
+  } = UserDataSchema.safeParse(userData);
+  if (!userDataSuccess) {
+    logger.error('Invalid user data', { error: userDataError });
     throw new APIError(constants.ErrorCode.FORMAT_INVALID_FORMATTER);
   }
-  const formattedStream = createFormatter(
-    formatter,
-    definition,
-    addonName
-  ).format(data);
+  const formattedStream = createFormatter(userDataData).format(streamData);
   res
     .status(200)
     .json(createResponse({ success: true, data: formattedStream }));

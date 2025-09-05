@@ -1,4 +1,5 @@
 import { createLogger } from '@aiostreams/core';
+import { Request } from 'express';
 const logger = createLogger('server');
 
 type ApiResponseOptions = {
@@ -10,8 +11,17 @@ type ApiResponseOptions = {
     message: string;
   };
 };
+export type ApiResponse<T> = {
+  success: boolean;
+  detail: string | null;
+  data: T | null;
+  error: {
+    code: string;
+    message: string;
+  } | null;
+};
 
-export function createResponse(options: ApiResponseOptions) {
+export function createResponse<T>(options: ApiResponseOptions): ApiResponse<T> {
   const { success, detail, data, error } = options;
 
   return {

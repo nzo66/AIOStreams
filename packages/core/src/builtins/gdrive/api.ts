@@ -76,7 +76,7 @@ export class GoogleOAuth {
       throw new Error('Builtin GDrive client ID and secret are not set');
     }
     this.refreshToken = refreshToken;
-    this.accessToken = accessTokenCache.get(this.refreshToken);
+    this.accessToken = undefined;
   }
 
   private static get clientId(): string {
@@ -160,7 +160,7 @@ export class GoogleOAuth {
   }
 
   private async refreshAccessToken(): Promise<void> {
-    const cachedToken = accessTokenCache.get(this.refreshToken);
+    const cachedToken = await accessTokenCache.get(this.refreshToken);
     if (cachedToken) {
       this.accessToken = cachedToken;
       return;
@@ -240,7 +240,6 @@ export class GDriveAPI {
 
     const data = await response.json();
     const parsedResponse = GDriveFileQueryResponseSchema.safeParse(data);
-    logger.debug(`GDrive file query response: ${JSON.stringify(data)}`);
 
     if (!parsedResponse.success || !parsedResponse.data) {
       throw new Error('Failed to parse GDrive file query response');
@@ -289,7 +288,9 @@ export class GDriveAPI {
     }
 
     if ('error' in parsedResponse.data) {
-      throw new Error('Failed to get GDrive file');
+      throw new Error(
+        `GDrive API error: ${parsedResponse.data.error.code}: ${parsedResponse.data.error.message}: ${parsedResponse.data.error.errors.map((error) => `[${error.reason}] ${error.message} at ${error.location}`).join(', ')}`
+      );
     }
 
     return parsedResponse.data;

@@ -33,7 +33,7 @@ router.get(
       if (id.startsWith('aiostreamserror.')) {
         res.status(200).json({
           meta: StremioTransformer.createErrorMeta(
-            JSON.parse(decodeURIComponent(id.split('.')[1]))
+            JSON.parse(decodeURIComponent(id.split('.').slice(1).join('.')))
           ),
         });
         return;
@@ -43,7 +43,7 @@ router.get(
       await aiostreams.initialise();
 
       const meta = await aiostreams.getMeta(type, id);
-      const transformed = transformer.transformMeta(meta);
+      const transformed = await transformer.transformMeta(meta);
       if (!transformed) {
         next();
       } else {

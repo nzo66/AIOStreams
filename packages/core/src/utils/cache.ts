@@ -1,5 +1,11 @@
 import { createLogger } from './logger';
 import { Env } from './env';
+import {
+  CacheBackend,
+  MemoryCacheBackend,
+  RedisCacheBackend,
+} from './cache-adapter';
+import { createClient, RedisClientType } from 'redis';
 
 const logger = createLogger('cache');
 
@@ -15,25 +21,113 @@ function formatBytes(bytes: number, decimals: number = 2): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
-class CacheItem<T> {
-  constructor(
-    public value: T,
-    public lastAccessed: number,
-    public ttl: number // Time-To-Live in milliseconds
-  ) {}
-}
-
 export class Cache<K, V> {
   private static instances: Map<string, any> = new Map();
-  private cache: Map<K, CacheItem<V>>;
-  private maxSize: number;
   private static isStatsLoopRunning: boolean = false;
+  private backend: CacheBackend<K, V>;
+  private maxSize: number;
+  private name: string;
 
-  private constructor(maxSize: number) {
-    this.cache = new Map<K, CacheItem<V>>();
+  // Redis client singleton
+  private static redisClient: RedisClientType | null = null;
+
+  private constructor(name: string, maxSize: number, forceMemory: boolean) {
+    this.name = name;
     this.maxSize = maxSize;
-    Cache.startStatsLoop();
+
+    // Initialize the appropriate backend based on environment configuration
+    if (Env.REDIS_URI && !forceMemory) {
+      this.backend = new RedisCacheBackend<K, V>(
+        Cache.getRedisClient(),
+        `${name}:`,
+        maxSize
+      );
+      logger.debug(`Created Redis cache backend for ${name}`);
+    } else {
+      this.backend = new MemoryCacheBackend<K, V>(maxSize);
+      Cache.startStatsLoop();
+      logger.debug(`Created Memory cache backend for ${name}`);
+    }
   }
+
+  public static getRedisClient(): RedisClientType {
+    if (!this.redisClient) {
+      logger.info(`Initialising Redis client connection to ${Env.REDIS_URI}`);
+      this.redisClient = createClient({
+        url: Env.REDIS_URI,
+      });
+      this.redisClient.on('connect', () => {
+        logger.info('Connected to Redis server');
+      });
+      this.redisClient
+        .connect()
+        .then(() => {
+          if (!this.redisClient) {
+            throw new Error('Redis client not initialized');
+          }
+
+          this.redisClient.on('reconnecting', () => {
+            logger.warn('Reconnecting to Redis server');
+          });
+
+          this.redisClient.on('error', (err: any) => {
+            logger.error(`Redis client error: ${err}`);
+          });
+        })
+        .catch((err: any) => {
+          throw new Error(`Failed to connect to Redis server: ${err}`);
+        });
+    }
+
+    return this.redisClient;
+  }
+
+  /**
+   * Tests the Redis connection by attempting to set and get a test value
+   * @throws Error if Redis connection test fails
+   */
+  public static async testRedisConnection(): Promise<void> {
+    if (!Env.REDIS_URI) {
+      return;
+    }
+
+    try {
+      const client = this.getRedisClient();
+      const startTime = Date.now();
+      while (Date.now() - startTime < 10000) {
+        if (client.isReady) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (!client.isReady) {
+        throw new Error('Redis connection test timed out');
+      }
+
+      const testKey = 'redis:connection:test';
+      const testValue = 'test-' + Date.now();
+
+      await client.set(testKey, testValue, {
+        expiration: {
+          type: 'EX',
+          value: 10,
+        },
+      });
+
+      const retrievedValue = await client.get(testKey);
+
+      if (retrievedValue !== testValue) {
+        throw new Error('Redis get/set test failed: values do not match');
+      }
+
+      await client.del(testKey);
+
+      logger.info('Redis connection test successful');
+    } catch (err: any) {
+      throw new Error(`Redis connection test failed: ${err.message}`);
+    }
+  }
+
   private static startStatsLoop() {
     if (Cache.isStatsLoopRunning) {
       return;
@@ -57,20 +151,27 @@ export class Cache<K, V> {
    */
   public static getInstance<K, V>(
     name: string,
-    maxSize: number = Env.DEFAULT_MAX_CACHE_SIZE
+    maxSize: number = Env.DEFAULT_MAX_CACHE_SIZE,
+    forceMemory: boolean = false
   ): Cache<K, V> {
     if (!this.instances.has(name)) {
       logger.debug(`Creating new cache instance: ${name}`);
-      this.instances.set(name, new Cache<K, V>(maxSize));
+      this.instances.set(name, new Cache<K, V>(name, maxSize, forceMemory));
     }
     return this.instances.get(name) as Cache<K, V>;
+  }
+
+  public static async close() {
+    if (this.redisClient) {
+      await this.redisClient.disconnect();
+    }
   }
 
   /**
    * Gets the statistics of the cache in use by the program. returns a formatted string containing a list of all cache instances
    * and their currently held items, max items
    */
-  public static stats() {
+  public static async stats() {
     if (!this.instances || this.instances.size === 0) {
       return;
     }
@@ -84,31 +185,29 @@ export class Cache<K, V> {
       '╠══════════════════════╪══════════╪═════════════════╪═════════════════╣',
     ];
 
-    const bodyLines = Array.from(this.instances.entries()).map(
-      ([name, cache]) => {
-        let instanceSize = 0;
-        for (const item of cache.cache.values()) {
-          try {
-            // Estimate object size by getting the byte length of its JSON string representation.
-            // This is an approximation but is effective for many use cases.
-            instanceSize += Buffer.byteLength(JSON.stringify(item), 'utf8');
-          } catch (e) {
-            // Could fail on circular references. In that case, we add 0.
-            instanceSize += 0;
-          }
-        }
+    const bodyLines = [];
 
-        grandTotalItems += cache.cache.size;
-        grandTotalSize += instanceSize;
+    for (const [name, cache] of this.instances.entries()) {
+      let itemCount = 0;
+      let instanceSize = 0;
+
+      // push cache stats for memory cache only
+      if (cache.backend instanceof MemoryCacheBackend) {
+        itemCount = cache.backend.getSize();
+        instanceSize = cache.backend.getMemoryUsageEstimate();
 
         const nameStr = name.padEnd(20);
-        const itemsStr = String(cache.cache.size).padEnd(8);
+        const itemsStr = String(itemCount).padEnd(8);
         const maxSizeStr = String(cache.maxSize ?? '-').padEnd(15);
         const estSizeStr = formatBytes(instanceSize).padEnd(15);
+        grandTotalItems += itemCount;
+        grandTotalSize += instanceSize;
 
-        return `║ ${nameStr} │ ${itemsStr} │ ${maxSizeStr} │ ${estSizeStr} ║`;
+        bodyLines.push(
+          `║ ${nameStr} │ ${itemsStr} │ ${maxSizeStr} │ ${estSizeStr} ║`
+        );
       }
-    );
+    }
 
     const footer = [
       '╚══════════════════════╧══════════╧═════════════════╧═════════════════╝',
@@ -116,7 +215,9 @@ export class Cache<K, V> {
     ];
 
     const lines = [...header, ...bodyLines, ...footer];
-    logger.verbose(lines.join('\n'));
+    if (bodyLines.length > 0) {
+      logger.verbose(lines.join('\n'));
+    }
   }
 
   /**
@@ -132,29 +233,17 @@ export class Cache<K, V> {
     ttl: number,
     ...args: Parameters<T>
   ): Promise<ReturnType<T>> {
-    const cachedValue = this.get(key);
+    const cachedValue = await this.get(key);
     if (cachedValue !== undefined) {
       return cachedValue as ReturnType<T>;
     }
     const result = await fn(...args);
-    this.set(key, result, ttl);
+    await this.set(key, result, ttl);
     return result;
   }
 
-  get(key: K, updateTTL: boolean = true): V | undefined {
-    const item = this.cache.get(key);
-    if (item) {
-      const now = Date.now();
-      if (now - item.lastAccessed > item.ttl) {
-        this.cache.delete(key);
-        return undefined;
-      }
-      if (updateTTL) {
-        item.lastAccessed = now;
-      }
-      return structuredClone(item.value);
-    }
-    return undefined;
+  async get(key: K, updateTTL: boolean = false): Promise<V | undefined> {
+    return this.backend.get(key, updateTTL);
   }
 
   /**
@@ -163,14 +252,8 @@ export class Cache<K, V> {
    * @param value The value to set
    * @param ttl The TTL in seconds
    */
-  set(key: K, value: V, ttl: number): void {
-    if (this.cache.size >= this.maxSize) {
-      this.evict();
-    }
-    this.cache.set(
-      key,
-      new CacheItem<V>(structuredClone(value), Date.now(), ttl * 1000)
-    );
+  async set(key: K, value: V, ttl: number): Promise<void> {
+    return this.backend.set(key, value, ttl);
   }
 
   /**
@@ -178,42 +261,19 @@ export class Cache<K, V> {
    * @param key The key to update
    * @param value The new value
    */
-  update(key: K, value: V): void {
-    const item = this.cache.get(key);
-    if (item) {
-      item.value = value;
-    }
+  async update(key: K, value: V): Promise<void> {
+    return this.backend.update(key, value);
   }
 
-  clear(): void {
-    this.cache.clear();
+  async clear(): Promise<void> {
+    return this.backend.clear();
   }
 
-  getTTL(key: K): number {
-    // return the time left in seconds until the item expires
-    const item = this.cache.get(key);
-    if (item) {
-      return Math.max(
-        0,
-        Math.floor((item.lastAccessed + item.ttl - Date.now()) / 1000)
-      );
-    }
-    return 0;
+  async getTTL(key: K): Promise<number> {
+    return this.backend.getTTL(key);
   }
 
-  private evict(): void {
-    let oldestKey: K | undefined;
-    let oldestTime = Infinity;
-
-    for (const [key, item] of this.cache.entries()) {
-      if (item.lastAccessed < oldestTime) {
-        oldestTime = item.lastAccessed;
-        oldestKey = key;
-      }
-    }
-
-    if (oldestKey !== undefined) {
-      this.cache.delete(oldestKey);
-    }
+  async waitUntilReady(): Promise<void> {
+    return this.backend.waitUntilReady();
   }
 }

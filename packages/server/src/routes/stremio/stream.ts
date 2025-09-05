@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { AIOStreams, AIOStreamResponse } from '@aiostreams/core';
+import { AIOStreams, AIOStreamResponse, Env } from '@aiostreams/core';
 import { stremioStreamRateLimiter } from '../../middlewares/ratelimit';
 import { createLogger } from '@aiostreams/core';
 import { StremioTransformer } from '@aiostreams/core';
@@ -24,6 +24,13 @@ router.get(
     }
     const transformer = new StremioTransformer(req.userData);
 
+    const provideStreamData =
+      Env.PROVIDE_STREAM_DATA !== undefined
+        ? typeof Env.PROVIDE_STREAM_DATA === 'boolean'
+          ? Env.PROVIDE_STREAM_DATA
+          : Env.PROVIDE_STREAM_DATA.includes(req.requestIp || '')
+        : (req.headers['user-agent']?.includes('AIOStreams/') ?? false);
+
     try {
       const { type, id } = req.params;
 
@@ -33,7 +40,8 @@ router.get(
           await transformer.transformStreams(
             await (
               await new AIOStreams(req.userData).initialise()
-            ).getStreams(id, type)
+            ).getStreams(id, type),
+            { provideStreamData }
           )
         );
     } catch (error) {
@@ -46,7 +54,8 @@ router.get(
       ];
       if (transformer.showError('stream', errors)) {
         logger.error(
-          `Unexpected error during stream retrieval: ${errorMessage}`
+          `Unexpected error during stream retrieval: ${errorMessage}`,
+          error
         );
         res.status(200).json(
           StremioTransformer.createDynamicError('stream', {

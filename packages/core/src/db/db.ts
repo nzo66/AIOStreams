@@ -82,6 +82,7 @@ export class DB {
 
       DB.initialised = true;
       DB.dialect = this.uri.dialect;
+      logger.info('Database initialised');
     } catch (error) {
       logger.error('Failed to initialize database:', error);
       throw error;

@@ -58,9 +58,6 @@ export function findMatchingFileInTorrent(
             (title) => file.parsed.title?.toLowerCase() === title.toLowerCase()
           )
         ) {
-          console.log(
-            `Choosing file based on requested title match: ${file.name}`
-          );
           chosenFile = file;
           break;
         }
@@ -77,9 +74,6 @@ export function findMatchingFileInTorrent(
       (file) => file.name.toLowerCase() === requestedFilename.toLowerCase()
     );
     if (requestedFile) {
-      console.log(
-        `Choosing file based on requested filename match: ${requestedFile.name}`
-      );
       return requestedFile;
     }
   }

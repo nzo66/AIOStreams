@@ -81,9 +81,10 @@ export class SubDLPreset extends Preset {
       ),
       {
         id: 'subDlApiKey',
-        type: 'string',
+        type: 'password',
         name: 'SubDL API Key',
-        description: 'Enter your SubDL API key',
+        description:
+          'Your SubDL API key, located at your [account panel](https://subdl.com/panel/api)',
         required: true,
       },
       {

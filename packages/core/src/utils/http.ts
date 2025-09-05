@@ -13,7 +13,11 @@ import {
 import { socksDispatcher } from 'fetch-socks';
 
 const logger = createLogger('http');
-const urlCount = Cache.getInstance<string, number>('url-count');
+const urlCount = Cache.getInstance<string, number>(
+  'url-count',
+  undefined,
+  true
+);
 
 export class PossibleRecursiveRequestError extends Error {
   constructor(message: string) {
@@ -47,8 +51,29 @@ export interface RequestOptions {
   rawOptions?: RequestInit;
 }
 
-export function makeRequest(url: string, options: RequestOptions) {
-  const useProxy = shouldProxy(url);
+export async function makeRequest(url: string, options: RequestOptions) {
+  const urlObj = new URL(url);
+
+  if (Env.BASE_URL && urlObj.origin === Env.BASE_URL) {
+    const internalUrl = new URL(Env.INTERNAL_URL);
+    urlObj.protocol = internalUrl.protocol;
+    urlObj.host = internalUrl.host;
+    urlObj.port = internalUrl.port;
+  }
+
+  if (Env.REQUEST_URL_MAPPINGS) {
+    for (const [key, value] of Object.entries(Env.REQUEST_URL_MAPPINGS)) {
+      if (urlObj.origin === key) {
+        const mappedUrl = new URL(value);
+        urlObj.protocol = mappedUrl.protocol;
+        urlObj.host = mappedUrl.host;
+        urlObj.port = mappedUrl.port;
+        break;
+      }
+    }
+  }
+
+  const useProxy = shouldProxy(urlObj);
   const headers = new Headers(options.headers);
   if (options.forwardIp) {
     for (const header of HEADERS_FOR_IP_FORWARDING) {
@@ -60,40 +85,40 @@ export function makeRequest(url: string, options: RequestOptions) {
     headers.delete('User-Agent');
   }
 
-  if (url.startsWith(Env.INTERNAL_URL)) {
+  if (urlObj.toString().startsWith(Env.INTERNAL_URL)) {
     headers.set(INTERNAL_SECRET_HEADER, Env.INTERNAL_SECRET);
   }
 
-  let domainUserAgent = domainHasUserAgent(url);
+  let domainUserAgent = domainHasUserAgent(urlObj);
   if (domainUserAgent) {
     headers.set('User-Agent', domainUserAgent);
   }
 
   // block recursive requests
-  const key = `${url}-${options.forwardIp}`;
-  const currentCount = urlCount.get(key, false) ?? 0;
+  const key = `${urlObj.toString()}-${options.forwardIp}`;
+  const currentCount = (await urlCount.get(key)) ?? 0;
   if (
     currentCount > Env.RECURSION_THRESHOLD_LIMIT &&
     !options.ignoreRecursion
   ) {
     logger.warn(
-      `Detected possible recursive requests to ${url}. Current count: ${currentCount}. Blocking request.`
+      `Detected possible recursive requests to ${urlObj.toString()}. Current count: ${currentCount}. Blocking request.`
     );
     throw new PossibleRecursiveRequestError(
-      `Possible recursive request to ${url}`
+      `Possible recursive request to ${urlObj.toString()}`
     );
   }
   if (currentCount > 0) {
-    urlCount.update(key, currentCount + 1);
+    await urlCount.update(key, currentCount + 1);
   } else {
-    urlCount.set(key, 1, Env.RECURSION_THRESHOLD_WINDOW);
+    await urlCount.set(key, 1, Env.RECURSION_THRESHOLD_WINDOW);
   }
   logger.debug(
     `Making a ${useProxy ? 'proxied' : 'direct'} request to ${makeUrlLogSafe(
-      url
+      urlObj.toString()
     )} with forwarded ip ${maskSensitiveInfo(options.forwardIp ?? 'none')} and headers ${maskSensitiveInfo(JSON.stringify(Object.fromEntries(headers)))}`
   );
-  let response = fetch(url, {
+  let response = fetch(urlObj.toString(), {
     ...options.rawOptions,
     method: options.method,
     body: options.body,
@@ -121,15 +146,9 @@ function getProxyAgent(proxyUrl: string) {
   }
 }
 
-function shouldProxy(url: string) {
+function shouldProxy(url: URL) {
   let shouldProxy = false;
-  let hostname: string;
-
-  try {
-    hostname = new URL(url).hostname;
-  } catch (error) {
-    return false;
-  }
+  let hostname = url.hostname;
 
   if (!Env.ADDON_PROXY) {
     return false;
@@ -159,15 +178,9 @@ function shouldProxy(url: string) {
   return shouldProxy;
 }
 
-function domainHasUserAgent(url: string) {
+function domainHasUserAgent(url: URL) {
   let userAgent: string | undefined;
-  let hostname: string;
-
-  try {
-    hostname = new URL(url).hostname;
-  } catch (error) {
-    return undefined;
-  }
+  let hostname = url.hostname;
 
   if (!Env.HOSTNAME_USER_AGENT_OVERRIDES) {
     return undefined;

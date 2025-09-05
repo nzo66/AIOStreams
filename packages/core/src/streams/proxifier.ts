@@ -22,7 +22,11 @@ class Proxifier {
     }
     const streamUrl = new URL(stream.url);
     const proxyUrl = new URL(proxy.url);
-    if (streamUrl.host === proxyUrl.host) {
+    if (
+      streamUrl.host === proxyUrl.host &&
+      // check for proxy endpoint for stremthru, not needed for mediaflow as all mediaflow links are proxied
+      (proxy.id === 'mediaflow' || streamUrl.pathname.includes('/v0/proxy'))
+    ) {
       stream.proxied = true;
       return false;
     }
@@ -79,6 +83,8 @@ class Proxifier {
       if (proxiedUrl) {
         stream.url = proxiedUrl;
         stream.proxied = true;
+        // proxy will handle request headers, can be removed here
+        stream.requestHeaders = undefined;
       } else {
         removeIndexes.add(index);
       }

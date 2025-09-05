@@ -68,11 +68,12 @@ import {
   AccordionContent,
   AccordionItem,
 } from '../ui/accordion';
-import { FaArrowRightLong, FaRankingStar, FaShuffle } from 'react-icons/fa6';
+import { FaArrowLeftLong, FaArrowRightLong, FaShuffle } from 'react-icons/fa6';
 import { PiStarFill, PiStarBold } from 'react-icons/pi';
 import { IoExtensionPuzzle } from 'react-icons/io5';
 import { NumberInput } from '../ui/number-input';
 import { useDisclosure } from '@/hooks/disclosure';
+import { useMode } from '@/context/mode';
 
 interface CatalogModification {
   id: string;
@@ -81,6 +82,7 @@ interface CatalogModification {
   overrideType?: string;
   enabled?: boolean;
   shuffle?: boolean;
+  reverse?: boolean;
   persistShuffleFor?: number;
   rpdb?: boolean;
   onlyOnDiscover?: boolean;
@@ -102,6 +104,7 @@ const manifestCache = new Map<string, any>();
 
 function Content() {
   const { status } = useStatus();
+  const { mode } = useMode();
   const { userData, setUserData } = useUserData();
   const [page, setPage] = useState<'installed' | 'marketplace'>('installed');
   const [search, setSearch] = useState('');
@@ -160,7 +163,7 @@ function Content() {
       options: Object.fromEntries(
         (preset.OPTIONS || []).map((opt: any) => [
           opt.id,
-          opt.default ?? undefined,
+          opt.forced ?? opt.default ?? undefined,
         ])
       ),
     });
@@ -424,7 +427,9 @@ function Content() {
 
             {userData.presets.length > 0 && <CatalogSettingsCard />}
 
-            {userData.presets.length > 0 && <AddonGroupCard />}
+            {userData.presets.length > 0 && mode === 'pro' && (
+              <AddonGroupCard />
+            )}
           </PageWrapper>
         )}
 
@@ -544,6 +549,9 @@ function SortableAddonItem({
 }) {
   const { userData, setUserData } = useUserData();
   const [isConfigurable, setIsConfigurable] = useState(false);
+  const [logo, setLogo] = useState<string | undefined>(
+    preset.logo || presetMetadata.LOGO
+  );
   const [step, setStep] = useState(1);
   // const [configModalOpen, setConfigModalOpen] = useState(false);
   const configModalOpen = useDisclosure(false);
@@ -569,6 +577,20 @@ function SortableAddonItem({
     return url.replace(/^stremio:\/\//, 'https://').replace(/\/$/, '');
   };
 
+  const getManifestUrl = (): string | undefined => {
+    if (presetMetadata.ID === 'custom' || presetMetadata.ID === 'aiostreams') {
+      return preset.options.manifestUrl;
+    }
+    const url = preset.options.url;
+    if (!url) return undefined;
+    try {
+      const urlObj = new URL(url);
+      if (urlObj.pathname.endsWith('/manifest.json')) {
+        return url;
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     if (configModalOpen.isOpen) {
       setStep(1);
@@ -578,20 +600,24 @@ function SortableAddonItem({
   useEffect(() => {
     let active = true;
 
-    if (presetMetadata.ID === 'custom' && preset.options.manifestUrl) {
-      const manifestUrl = standardiseManifestUrl(preset.options.manifestUrl);
-      const cached = manifestCache.get(manifestUrl);
+    const manifestUrl = getManifestUrl();
+
+    if (manifestUrl) {
+      const standardisedManifestUrl = standardiseManifestUrl(manifestUrl);
+      const cached = manifestCache.get(standardisedManifestUrl);
       if (cached) {
         setIsConfigurable(cached.behaviorHints?.configurable === true);
+        setLogo(cached.logo);
         return; // Don't fetch again
       }
 
-      fetch(manifestUrl)
+      fetch(standardisedManifestUrl)
         .then((r) => r.json())
         .then((manifest) => {
-          manifestCache.set(manifestUrl, manifest);
+          manifestCache.set(standardisedManifestUrl, manifest);
           if (active) {
             setIsConfigurable(manifest?.behaviorHints?.configurable === true);
+            setLogo(manifest?.logo);
           }
         })
         .catch(() => {
@@ -602,7 +628,7 @@ function SortableAddonItem({
     return () => {
       active = false;
     };
-  }, [presetMetadata.ID, preset.options.manifestUrl]);
+  }, [presetMetadata.ID, preset.options.manifestUrl, preset.options.url]);
 
   const handleManifestUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -632,20 +658,22 @@ function SortableAddonItem({
       return;
     }
 
-    setUserData((prev) => ({
-      ...prev,
-      presets: prev.presets.map((p) =>
-        p.instanceId === preset.instanceId
-          ? {
-              ...p,
-              options: {
-                ...p.options,
-                manifestUrl: standardisedManifest,
-              },
-            }
-          : p
-      ),
-    }));
+    setUserData((prev) => {
+      const currentPreset = prev.presets.find(
+        (p) => p.instanceId === preset.instanceId
+      );
+      if (!currentPreset) return prev;
+      const options =
+        presetMetadata.ID === 'custom' || presetMetadata.ID === 'aiostreams'
+          ? { ...currentPreset.options, manifestUrl: standardisedManifest }
+          : { ...currentPreset.options, url: standardisedManifest };
+      return {
+        ...prev,
+        presets: prev.presets.map((p) =>
+          p.instanceId === preset.instanceId ? { ...p, options } : p
+        ),
+      };
+    });
 
     setNewManifestUrl('');
     configModalOpen.close();
@@ -654,8 +682,9 @@ function SortableAddonItem({
   };
 
   const getConfigureUrl = () => {
-    if (!preset.options.manifestUrl) return '';
-    return standardiseManifestUrl(preset.options.manifestUrl).replace(
+    const manifestUrl = getManifestUrl();
+    if (!manifestUrl) return '';
+    return standardiseManifestUrl(manifestUrl).replace(
       /\/manifest\.json$/,
       '/configure'
     );
@@ -671,11 +700,11 @@ function SortableAddonItem({
         />
         <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
           <div className="relative flex-shrink-0 h-8 w-8 hidden sm:block">
-            {presetMetadata.ID === 'custom' || !presetMetadata.LOGO ? (
+            {!logo ? (
               <IoExtensionPuzzle className="w-full h-full object-contain" />
             ) : (
               <Image
-                src={presetMetadata.LOGO}
+                src={logo}
                 alt={presetMetadata.NAME}
                 fill
                 className="w-full h-full object-contain rounded-md"
@@ -694,7 +723,7 @@ function SortableAddonItem({
             onValueChange={onToggleEnabled}
             size="sm"
           />
-          {isConfigurable && presetMetadata.ID === 'custom' && (
+          {isConfigurable && (
             <IconButton
               className="rounded-full h-8 w-8 md:h-10 md:w-10"
               icon={<LuSettings />}
@@ -932,6 +961,7 @@ function AddonModal({
   initialValues?: Record<string, any>;
   onSubmit: (values: Record<string, any>) => void;
 }) {
+  const { mode: configMode } = useMode();
   const [values, setValues] = useState<Record<string, any>>(initialValues);
   useEffect(() => {
     if (open) {
@@ -944,7 +974,13 @@ function AddonModal({
       }, 150);
     }
   }, [open, initialValues]);
-  const dynamicOptions: Option[] = presetMetadata?.OPTIONS || [];
+  let dynamicOptions: Option[] = presetMetadata?.OPTIONS || [];
+  if (configMode === 'noob') {
+    dynamicOptions = dynamicOptions.filter((opt: any) => {
+      if (opt?.showInNoobMode === false) return false;
+      return true;
+    });
+  }
 
   // Check if all required fields are filled
   const allRequiredFilled = dynamicOptions.every((opt: any) => {
@@ -1584,6 +1620,38 @@ function SortableCatalogItem({
     });
   };
 
+  const currentState = catalog.shuffle
+    ? 'shuffle'
+    : catalog.reverse
+      ? 'reverse'
+      : 'default';
+  const catalogOrderStates = ['default', 'shuffle', 'reverse'];
+  const cycleCatalogOrderState = () => {
+    setUserData((prev) => {
+      const currentModification = prev.catalogModifications?.find(
+        (c) => c.id === catalog.id && c.type === catalog.type
+      );
+      if (!currentModification) return prev;
+      const newState =
+        catalogOrderStates[
+          (catalogOrderStates.indexOf(currentState) + 1) %
+            catalogOrderStates.length
+        ];
+      return {
+        ...prev,
+        catalogModifications: prev.catalogModifications?.map((c) =>
+          c.id === catalog.id && c.type === catalog.type
+            ? {
+                ...c,
+                shuffle: newState === 'shuffle',
+                reverse: newState === 'reverse',
+              }
+            : c
+        ),
+      };
+    });
+  };
+
   const [modalOpen, setModalOpen] = useState(false);
   const [newName, setNewName] = useState(catalog.name || '');
   const [newType, setNewType] = useState(
@@ -1701,8 +1769,8 @@ function SortableCatalogItem({
           <Accordion type="single" collapsible>
             <AccordionItem value="settings">
               <AccordionTrigger>
-                <div className="flex items-center justify-between w-full">
-                  <h4 className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide">
+                <div className="flex items-center justify-center md:justify-between w-full">
+                  <h4 className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide hidden md:block">
                     Settings
                   </h4>
 
@@ -1711,10 +1779,12 @@ function SortableCatalogItem({
                     <Tooltip
                       trigger={
                         <IconButton
-                          className={dynamicIconSize}
+                          className="text-2xl h-10 w-10"
                           icon={
                             catalog.shuffle ? (
                               <FaShuffle />
+                            ) : catalog.reverse ? (
+                              <FaArrowLeftLong />
                             ) : (
                               <FaArrowRightLong />
                             )
@@ -1723,25 +1793,18 @@ function SortableCatalogItem({
                           rounded
                           onClick={(e) => {
                             e.stopPropagation();
-                            setUserData((prev) => ({
-                              ...prev,
-                              catalogModifications:
-                                prev.catalogModifications?.map((c) =>
-                                  c.id === catalog.id && c.type === catalog.type
-                                    ? { ...c, shuffle: !c.shuffle }
-                                    : c
-                                ),
-                            }));
+                            cycleCatalogOrderState();
                           }}
                         />
                       }
                     >
-                      Shuffle
+                      {currentState.charAt(0).toUpperCase() +
+                        currentState.slice(1)}
                     </Tooltip>
                     <Tooltip
                       trigger={
                         <IconButton
-                          className={dynamicIconSize}
+                          className="text-2xl h-10 w-10"
                           icon={catalog.rpdb ? <PiStarFill /> : <PiStarBold />}
                           intent="primary-subtle"
                           rounded
@@ -1767,7 +1830,7 @@ function SortableCatalogItem({
                       <Tooltip
                         trigger={
                           <IconButton
-                            className={dynamicIconSize}
+                            className="text-2xl h-10 w-10"
                             icon={
                               catalog.onlyOnDiscover ? (
                                 <TbSmartHomeOff />
@@ -1804,7 +1867,7 @@ function SortableCatalogItem({
                       <Tooltip
                         trigger={
                           <IconButton
-                            className={dynamicIconSize}
+                            className="text-2xl h-10 w-10"
                             icon={
                               catalog.disableSearch ? (
                                 <TbSearchOff />
@@ -1854,7 +1917,33 @@ function SortableCatalogItem({
                           catalogModifications: prev.catalogModifications?.map(
                             (c) =>
                               c.id === catalog.id && c.type === catalog.type
-                                ? { ...c, shuffle }
+                                ? {
+                                    ...c,
+                                    shuffle,
+                                    reverse: shuffle ? false : c.reverse,
+                                  }
+                                : c
+                          ),
+                        }));
+                      }}
+                    />
+
+                    <Switch
+                      label="Reverse Order"
+                      help="Reverse the order of catalog items"
+                      side="right"
+                      value={catalog.reverse ?? false}
+                      onValueChange={(reverse) => {
+                        setUserData((prev) => ({
+                          ...prev,
+                          catalogModifications: prev.catalogModifications?.map(
+                            (c) =>
+                              c.id === catalog.id && c.type === catalog.type
+                                ? {
+                                    ...c,
+                                    reverse,
+                                    shuffle: reverse ? false : c.shuffle,
+                                  }
                                 : c
                           ),
                         }));

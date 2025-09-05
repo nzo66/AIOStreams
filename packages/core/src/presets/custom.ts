@@ -30,8 +30,8 @@ export class CustomPreset extends Preset {
         default: false,
       },
       {
-        id: 'streamPassthrough',
-        name: 'Stream Passthrough',
+        id: 'formatPassthrough',
+        name: 'Format Passthrough',
         description:
           'Whether to pass through the stream formatting. This means your formatting will not be applied and original stream formatting is retained.',
         type: 'boolean',
@@ -72,6 +72,7 @@ export class CustomPreset extends Preset {
           'Optionally override the resources that are fetched from this addon ',
         type: 'multi-select',
         required: false,
+        showInNoobMode: false,
         default: undefined,
         options: RESOURCES.map((resource) => ({
           label: resource,
@@ -132,7 +133,8 @@ export class CustomPreset extends Preset {
         type: this.METADATA.ID,
         options: options,
       },
-      streamPassthrough: options.streamPassthrough ?? false,
+      formatPassthrough:
+        options.formatPassthrough ?? options.streamPassthrough ?? false,
       resultPassthrough: options.resultPassthrough ?? false,
       forceToTop: options.forceToTop ?? false,
       headers: {
